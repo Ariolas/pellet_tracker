@@ -4,6 +4,46 @@ Suivi des évolutions de l'intégration. Chaque entrée contient la synthèse
 des changements effectués. Format inspiré de Keep a Changelog (version +
 date), antichronologique.
 
+## [0.7.0] — 2026-10-20
+
+### Fonctionnalité : « Delta d'un sac » exprimé en niveau (mesure brute)
+
+- **Sémantique** — Le delta d'un sac n'est plus un pourcentage mais une
+  **différence de niveau brute** (l'unité du capteur : cm pour un
+  télémètre) : plus simple à mesurer — niveau avant remplissage, niveau
+  après, la soustraction donne la valeur à saisir. Le champ de
+  configuration (assistant + options), le service `reset_learning` et
+  l'entité « Delta d'un sac (appris) » sont tous en niveau brut.
+- **`detector.py`** — `ConvertisseurNiveau` gère la conversion aux
+  frontières : `delta_niveau_vers_pct` (saisie → interne) et
+  `delta_pct_vers_niveau` (interne → affichage). La machine à états, le
+  seuil de bruit et la tolérance adaptative restent en % interne —
+  aucun test du détecteur n'a changé, 5 nouveaux tests de conversion.
+- **`coordinator.py`** — Le delta saisi est converti en % interne au
+  chargement ; les notifications affichent le delta en niveau brut
+  (« +12,5 de niveau ») ; `reset_learning` accepte un paramètre en
+  niveau brut (converti). La valeur apprise persistée reste en % interne
+  (réinterprétation inutile des données existantes).
+- **`sensor.py`** — Nouvelles entités **dans le bloc « Configuration »
+  de l'appareil** (catégorie HA `CONFIGURATION`, lecture seule — la
+  saisie se fait dans les options) : « Niveau bas (cuve vide) »,
+  « Niveau haut (cuve pleine) », « Delta d'un sac (base) ».
+  « Delta d'un sac (appris) » (diagnostique) affiche désormais la
+  valeur apprise en niveau brut, avec attributs `tolerance_niveau`,
+  `deltas_confirmes`, `delta_base`.
+- **`event.py`** — Attribut `delta_niveau` ajouté au dernier remplissage.
+- **`services.yaml`, `translations/`** — Descriptions et libellés mis au
+  pluriel des niveaux bruts (fr/en).
+
+### Notes de version
+
+- **Migration requise** : une installation existante doit resaisir son
+  delta d'un sac en niveau brut dans les options (la valeur `8.0`
+  stockée était en %). Avec des bornes (vide/pleine) d'étendue 100, la
+  valeur numérique reste identique (coïncidence du changement d'unité).
+- Vérifié hors HA : compilation, 15/15 tests détecteur + 12/12 tests
+  conversion. Flows et entités à valider dans l'instance.
+
 ## [0.6.0] — 2026-10-20
 
 ### Fonctionnalité : sélection des appareils de notification

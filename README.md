@@ -21,7 +21,7 @@ L'assistant demande :
 |---|---|---|
 | Capteur de niveau | `entity_id` du capteur (distance ou %) | — |
 | Appareils de notification | sélection multiple parmi les services `notify.*` existants ; vide = notifications désactivées | — |
-| Delta d'un sac | % gagné pour 1 sac de 15 kg (calibration terrain) | 8.0 |
+| Delta d'un sac | différence de niveau brute pour 1 sac de 15 kg (mesurer le niveau avant / après remplissage) | 8.0 |
 | Sacs initiaux | estimation de sacs déjà consommés au premier lancement | 0 |
 | Valeur cuve VIDE | mesure brute du capteur cuve vide | 0 |
 | Valeur cuve PLEINE | mesure brute du capteur cuve pleine | 100 |
@@ -58,7 +58,8 @@ les défauts (0 / 100) laissent la valeur inchangée.
 
 ## Entités créées (par appareil « Suivi granulés »)
 
-- `sensor` Niveau de remplissage (%), Sacs consommés, Sacs restants estimés, Delta d'un sac appris (entité diagnostique en lecture seule ; attributs : tolérance, deltas confirmés, calibration initiale)
+- `sensor` Niveau de remplissage (%), Sacs consommés, Sacs restants estimés, Delta d'un sac appris (niveau appris, en lecture seule ; attributs : tolérance, deltas confirmés, base)
+- `sensor` Bloc Configuration de l'appareil : Niveau bas (cuve vide), Niveau haut (cuve pleine), Delta d'un sac (base)
 - `button` Tester la notification (envoie un test aux appareils sélectionnés)
 - `binary_sensor` Remplissage en cours
 - `event` Dernier remplissage (delta, décision, niveaux)
