@@ -438,3 +438,14 @@ class PelletCoordinator:
         self.data["deltas_confirmes"] = []
         await self.storage.async_sauver(self.data)
         self._notify_entities()
+
+        # Retour utilisateur : l'action efface l'historique d'apprentissage,
+        # on le confirme par notification (si des cibles sont configurées).
+        await self._notifier(
+            "Poêle à granulés",
+            (
+                "Apprentissage réinitialisé : le delta repart de la base "
+                f"({self.convertisseur.delta_pct_vers_niveau(self.apprentissage.delta_un_sac):.1f} "
+                "de niveau par sac). Les deltas confirmés sont effacés."
+            ),
+        )

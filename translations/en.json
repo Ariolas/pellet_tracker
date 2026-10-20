@@ -22,7 +22,7 @@
   "options": {
     "step": {
       "init": {
-        "description": "The device button sends a test notification to the selected devices below.",
+        "description": "The test notification button sends a test to the selected devices. WARNING: the reset learning button erases confirmed deltas and restarts from the base delta — only use it after a sensor change or a level recalibration.",
         "data": {
           "delta_un_sac": "Delta for one bag — starting base (level difference per 15 kg bag, refined by learning)",
           "seuil_bruit_pct": "Noise threshold (%)",

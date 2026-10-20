@@ -61,6 +61,7 @@ les défauts (0 / 100) laissent la valeur inchangée.
 - `sensor` Niveau de remplissage (%), Sacs consommés, Sacs restants estimés, Delta d'un sac appris (niveau appris, en lecture seule ; attributs : tolérance, deltas confirmés, base)
 - `sensor` Bloc Configuration de l'appareil : Niveau bas (cuve vide), Niveau haut (cuve pleine), Delta d'un sac (base)
 - `button` Tester la notification (envoie un test aux appareils sélectionnés)
+- `button` Réinitialiser l'apprentissage (efface les deltas confirmés, repart du delta de base — à réserver à un changement de capteur ou une recalibration)
 - `binary_sensor` Remplissage en cours
 - `event` Dernier remplissage (delta, décision, niveaux)
 

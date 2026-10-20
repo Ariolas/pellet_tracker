@@ -23,7 +23,7 @@
   "options": {
     "step": {
       "init": {
-        "description": "Le bouton « Tester la notification » de l'appareil envoie une notification de test sur les appareils sélectionnés ci-dessous.",
+        "description": "Le bouton « Tester la notification » envoie une notification de test sur les appareils sélectionnés. ATTENTION : le bouton « Réinitialiser l'apprentissage » efface les deltas confirmés et repart du delta de base — à réserver à un changement de capteur ou à une recalibration des niveaux.",
         "data": {
           "delta_un_sac": "Delta d'un sac — base de départ (différence de niveau par sac de 15 kg, affinée par l'apprentissage)",
           "seuil_bruit_pct": "Seuil de bruit (%)",
