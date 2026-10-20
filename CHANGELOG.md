@@ -4,7 +4,49 @@ Suivi des évolutions de l'intégration. Chaque entrée contient la synthèse
 des changements effectués. Format inspiré de Keep a Changelog (version +
 date), antichronologique.
 
-## [0.2.0] — 2026-10-20
+## [0.3.0] — 2026-10-20
+
+### Fonctionnalité : support des capteurs de distance (télémètre)
+
+Le capteur de niveau peut être un télémètre : il renvoie la distance entre
+le capteur et la surface des granulés, donc **sa valeur augmente quand la
+cuve se vide** — sens inverse d'un niveau classique. Jusqu'ici, toute la
+logique supposait « valeur qui monte = remplissage » : pour un télémètre,
+la consommation aurait été comptée comme un remplissage.
+
+- **`detector.py`** — Nouvelle classe pure `ConvertisseurNiveau` :
+  convertit la mesure brute en % de remplissage à partir des deux
+  valeurs de référence (cuve vide / cuve pleine). Formule indépendante
+  de l'ordre des bornes (fonctionne aussi pour un capteur dont la valeur
+  monte quand la cuve se remplit, ex. peson), % borné à [0, 100],
+  arrondi à 2 décimales, garde-fou si les deux valeurs sont égales.
+- **`coordinator.py`** — La conversion est appliquée à chaque mesure
+  (ancienne et nouvelle) AVANT tout traitement : suivi de consommation,
+  machine à états, amorçage au démarrage. Le reste de l'intégration ne
+  voit que du %.
+- **`config_flow.py`** — Deux nouveaux champs dans la fenêtre de
+  paramétrage : « valeur du capteur cuve vide » et « valeur du capteur
+  cuve pleine » (assistant initial + options, modifiables sans
+  réinstallation). Validation : les deux valeurs doivent différer.
+- **`const.py`** — Clés `CONF_VALEUR_VIDE` / `CONF_VALEUR_PLEINE` et
+  défauts `0 / 100` : pour un capteur qui expose déjà un niveau 0–100 %,
+  la conversion est l'identité (comportement inchangé des installations
+  existantes).
+- **`translations/`** — Libellés fr/en des deux champs + message d'erreur.
+- **`tests/test_conversion.py`** — 7 nouveaux tests : télémètre
+  (distance/2 = mi-hauteur), bornage hors plage, identité capteur %,
+  ordre inversé (poids), garde-fou valeurs égales, scénario bout en bout
+  consommation puis remplissage AUTO, capteur silencieux.
+
+### Notes de version
+
+- Vérifié hors HA : compilation, 15/15 tests détecteur + 7/7 tests
+  conversion.
+- Non vérifié : chargement réel dans une instance Home Assistant. Pour un
+  télémètre existant, saisir les deux distances aux extrêmes dans les
+  options, sinon la conversion reste identité (0/100) et le comportement
+  est celui de la 0.2.0.
+
 
 ### Corrections bloquantes
 
