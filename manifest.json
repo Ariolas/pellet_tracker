@@ -1,0 +1,13 @@
+{
+  "domain": "pellet_tracker",
+  "name": "Pellet Tracker",
+  "codeowners": ["@prive"],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://local/pellet_tracker",
+  "integration_type": "device",
+  "iot_class": "calculated",
+  "issue_tracker": "https://local/pellet_tracker/issues",
+  "requirements": [],
+  "version": "0.1.0"
+}

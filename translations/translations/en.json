@@ -1,0 +1,28 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "data": {
+          "sensor_niveau": "Fill level sensor (%)",
+          "notify_service": "Mobile notification service",
+          "delta_un_sac": "Delta for one bag (% gained per 15 kg bag)",
+          "sacs_initiaux": "Estimated bags at first launch"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "This level sensor is already tracked."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "data": {
+          "seuil_bruit_pct": "Noise threshold (%)",
+          "duree_stabilisation_s": "Stabilization duration (s)",
+          "fenetre_hausse_s": "Fast rise window (s)"
+        }
+      }
+    }
+  }
+}
