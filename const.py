@@ -7,6 +7,8 @@ PLATFORMS = ["sensor", "binary_sensor", "event"]
 CONF_SENSOR_NIVEAU = "sensor_niveau"        # entity_id du capteur de niveau (%)
 CONF_NOTIFY = "notify_service"              # ex. notify.mobile_app_pixel
 CONF_SACS_INIT = "sacs_initiaux"            # sacs estimés au premier lancement
+CONF_VALEUR_VIDE = "valeur_vide"             # valeur du capteur cuve vide (ex. distance max)
+CONF_VALEUR_PLEINE = "valeur_pleine"         # valeur du capteur cuve pleine (ex. distance min)
 CONF_SEUIL_BRUIT = "seuil_bruit_pct"        # variation considérée comme du bruit
 CONF_DUREE_STABILISATION = "duree_stabilisation_s"  # silence requis après la hausse
 CONF_FENETRE_HAUSSE = "fenetre_hausse_s"     # durée max pour qualifier la hausse de "rapide"
@@ -34,3 +36,7 @@ DEFAULT_ALPHA_EMA = 0.30          # lissage exponentiel
 DEFAULT_FENETRE_STD = 10          # nb de derniers deltas pour l'écart-type glissant
 DEFAULT_SACS_INIT = 0
 DEFAULT_NOTIFY = "notify.mobile_app_mon_tel"
+# Conversion capteur → % : ces défauts rendent la conversion identité
+# pour un capteur qui expose déjà un niveau 0–100 %.
+DEFAULT_VALEUR_VIDE = 0.0       # valeur capteur cuve VIDE (ex. distance max)
+DEFAULT_VALEUR_PLEINE = 100.0       # valeur capteur cuve PLEINE (ex. distance min)

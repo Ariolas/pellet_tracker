@@ -17,15 +17,16 @@ from homeassistant.helpers.event import (
 from .const import (
     CONF_NOTIFY, CONF_SEUIL_BRUIT, CONF_FENETRE_HAUSSE,
     CONF_DUREE_STABILISATION, CONF_ALPHA_EMA, CONF_FENETRE_STD,
-    CONF_TOLERANCE_MIN,
+    CONF_TOLERANCE_MIN, CONF_VALEUR_VIDE, CONF_VALEUR_PLEINE,
     DEFAULT_SEUIL_BRUIT, DEFAULT_DUREE_STABILISATION,
     DEFAULT_FENETRE_HAUSSE, DEFAULT_ALPHA_EMA, DEFAULT_FENETRE_STD,
     DEFAULT_TOLERANCE_MIN, DEFAULT_DELTA_UN_SAC,
+    DEFAULT_VALEUR_VIDE, DEFAULT_VALEUR_PLEINE,
     EVENT_MOBILE_APP_ACTION, ACTION_CONFIRM, ACTION_CANCEL,
 )
 from .detector import (
-    ApprentissageAdaptatif, Decision, DetecteurRemplissage,
-    Etat, EvenementRemplissage, ResultatRemplissage,
+    ApprentissageAdaptatif, ConvertisseurNiveau, Decision,
+    DetecteurRemplissage, Etat, EvenementRemplissage, ResultatRemplissage,
 )
 from .storage import PelletStorage
 
@@ -49,6 +50,15 @@ class PelletCoordinator:
         fenetre_std = entry.options.get(CONF_FENETRE_STD, DEFAULT_FENETRE_STD)
         tolerance_min = entry.options.get(CONF_TOLERANCE_MIN, DEFAULT_TOLERANCE_MIN)
         delta_initial = entry.data.get("delta_un_sac", DEFAULT_DELTA_UN_SAC)
+        # Le capteur peut être un télémètre : la mesure brute est convertie
+        # en % de remplissage avant d'alimenter la machine à états.
+        valeur_vide = entry.options.get(
+            CONF_VALEUR_VIDE, entry.data.get(CONF_VALEUR_VIDE, DEFAULT_VALEUR_VIDE)
+        )
+        valeur_pleine = entry.options.get(
+            CONF_VALEUR_PLEINE, entry.data.get(CONF_VALEUR_PLEINE, DEFAULT_VALEUR_PLEINE)
+        )
+        self.convertisseur = ConvertisseurNiveau(valeur_vide, valeur_pleine)
 
         self.data: dict[str, Any] = {}
         self.apprentissage = ApprentissageAdaptatif(
@@ -85,10 +95,14 @@ class PelletCoordinator:
         etat_capteur = self.hass.states.get(capteur)
         if etat_capteur is not None and etat_capteur.state not in ("unknown", "unavailable"):
             try:
-                self.detecteur.traiter_mesure(float(etat_capteur.state), time.time())
+                self.detecteur.traiter_mesure(
+                    self.convertisseur.en_pct(float(etat_capteur.state)), time.time()
+                )
             except ValueError:
                 pass
-        _LOGGER.info("pellet_tracker actif, capteur écouté : %s", capteur)
+        _LOGGER.info("pellet_tracker actif, capteur écouté : %s (vide=%s, pleine=%s)",
+                     capteur, self.convertisseur.valeur_vide,
+                     self.convertisseur.valeur_pleine)
 
     async def async_unload(self) -> None:
         self._gerer_timer_annulation()
@@ -112,21 +126,32 @@ class PelletCoordinator:
     # -------------------------------------------------- écoute du capteur
     @callback
     def _on_capteur(self, event: Event) -> None:
-        """Chaque changement d'état du capteur alimente la machine à états."""
+        """Chaque changement d'état du capteur alimente la machine à états.
+
+        La mesure brute (distance pour un télémètre) est convertie en %
+        de remplissage AVANT tout traitement : c'est le % qui baisse quand
+        la cuve se vide, jamais la valeur brute.
+        """
         ancien: Optional[State] = event.data.get("old_state")
         nouveau: Optional[State] = event.data.get("new_state")
         if nouveau is None or nouveau.state in ("unknown", "unavailable"):
             return
         try:
-            niveau = float(nouveau.state)
+            niveau = self.convertisseur.en_pct(float(nouveau.state))
         except ValueError:
             return
 
         maintenant = time.time()
-        ancien_niveau = float(ancien.state) if ancien and ancien.state not in ("unknown", "unavailable") else niveau
+        if ancien and ancien.state not in ("unknown", "unavailable"):
+            try:
+                ancien_niveau = self.convertisseur.en_pct(float(ancien.state))
+            except ValueError:
+                ancien_niveau = niveau
+        else:
+            ancien_niveau = niveau
         variation = niveau - ancien_niveau
 
-        # --- Suivi de la consommation (baisse hors remplissage) ---
+        # --- Suivi de la consommation (baisse de niveau hors remplissage) ---
         if not self.detecteur.remplissage_en_cours and variation < 0:
             self.data["niveau_consome_pct"] = self.data.get("niveau_consome_pct", 0.0) - variation
             self.hass.async_create_task(self.storage.async_sauver(self.data))

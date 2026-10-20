@@ -235,3 +235,48 @@ class ApprentissageAdaptatif:
         """Réinitialise l'apprentissage (service reset_learning)."""
         self.delta_un_sac = float(delta_un_sac)
         self.deltas_confirmes.clear()
+
+
+class ConvertisseurNiveau:
+    """Convertit la mesure brute du capteur en % de remplissage.
+
+    Le capteur peut être un télémètre : il renvoie la distance entre
+    le capteur (en haut de cuve) et la surface des granulés. Plus la cuve
+    se vide, plus la valeur augmente — le sens est donc inversé par
+    rapport à un niveau classique.
+
+    Args:
+        valeur_vide: mesure du capteur quand la cuve est VIDE
+                     (pour un télémètre : la distance la plus grande).
+        valeur_pleine: mesure du capteur quand la cuve est PLEINE
+                      (pour un télémètre : la distance la plus petite).
+
+    La formule est indépendante de l'ordre des deux valeurs : elle
+    fonctionne aussi pour un capteur dont la valeur augmente quand la
+    cuve se remplit (ex. poids). Avec (100, 0), la conversion est
+    l'identité — comportement inchangé pour un capteur en %.
+    """
+
+    def __init__(self, valeur_vide: float, valeur_pleine: float) -> None:
+        self.valeur_vide = float(valeur_vide)
+        self.valeur_pleine = float(valeur_pleine)
+
+    @property
+    def etendue(self) -> float:
+        """Écart entre cuve vide et cuve pleine (signé, jamais nul ici)."""
+        return self.valeur_vide - self.valeur_pleine
+
+    def en_pct(self, mesure: float) -> float:
+        """Retourne le % de remplissage, borné à [0, 100].
+
+        Si les deux valeurs de référence sont égales (configuration
+        incomplète), la mesure est retournée telle quelle plutôt que de
+        diviser par zéro.
+        """
+        etendue = self.etendue
+        if etendue == 0:
+            return float(mesure)
+        pct = (self.valeur_vide - float(mesure)) / etendue * 100.0
+        # arrondi a 2 decimales : evite la poussiere de flottant issue de
+        # la conversion (identite exacte en mode capteur %)
+        return round(max(0.0, min(100.0, pct)), 2)

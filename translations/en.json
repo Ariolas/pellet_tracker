@@ -6,9 +6,14 @@
           "sensor_niveau": "Fill level sensor (%)",
           "notify_service": "Mobile notification service",
           "delta_un_sac": "Delta for one bag (% gained per 15 kg bag)",
-          "sacs_initiaux": "Estimated bags at first launch"
+          "sacs_initiaux": "Estimated bags at first launch",
+          "valeur_vide": "Sensor value when tank EMPTY (e.g. largest distance)",
+          "valeur_pleine": "Sensor value when tank FULL (e.g. shortest distance)"
         }
       }
+    },
+    "error": {
+      "valeurs_identiques": "Empty-tank and full-tank values must differ."
     },
     "abort": {
       "already_configured": "This level sensor is already tracked."
@@ -24,9 +29,14 @@
           "notify_service": "Mobile notification service",
           "alpha_ema": "EMA smoothing coefficient (0.05 to 1)",
           "fenetre_std": "Rolling std-dev window (deltas)",
-          "tolerance_min_pct": "Minimum detection tolerance (%)"
+          "tolerance_min_pct": "Minimum detection tolerance (%)",
+          "valeur_vide": "Sensor value when tank EMPTY (e.g. largest distance)",
+          "valeur_pleine": "Sensor value when tank FULL (e.g. shortest distance)"
         }
       }
+    },
+    "error": {
+      "valeurs_identiques": "Empty-tank and full-tank values must differ."
     }
   }
 }

@@ -7,9 +7,14 @@
           "sensor_niveau": "Capteur de niveau de remplissage (%)",
           "notify_service": "Service de notification mobile (ex. notify.mobile_app_pixel)",
           "delta_un_sac": "Delta d'un sac (% gagné pour 1 sac de 15 kg)",
-          "sacs_initiaux": "Nombre de sacs estimés au lancement"
+          "sacs_initiaux": "Nombre de sacs estimés au lancement",
+          "valeur_vide": "Valeur du capteur cuve VIDE (ex. distance la plus grande)",
+          "valeur_pleine": "Valeur du capteur cuve PLEINE (ex. distance la plus courte)"
         }
       }
+    },
+    "error": {
+      "valeurs_identiques": "Les valeurs cuve vide et cuve pleine doivent être différentes."
     },
     "abort": {
       "already_configured": "Ce capteur de niveau est déjà suivi par pellet_tracker."
@@ -25,9 +30,14 @@
           "notify_service": "Service de notification mobile",
           "alpha_ema": "Coefficient de lissage EMA (0,05 à 1)",
           "fenetre_std": "Nb de deltas pour l'écart-type glissant",
-          "tolerance_min_pct": "Plancher de tolérance de détection (%)"
+          "tolerance_min_pct": "Plancher de tolérance de détection (%)",
+          "valeur_vide": "Valeur du capteur cuve VIDE (ex. distance la plus grande)",
+          "valeur_pleine": "Valeur du capteur cuve PLEINE (ex. distance la plus courte)"
         }
       }
+    },
+    "error": {
+      "valeurs_identiques": "Les valeurs cuve vide et cuve pleine doivent être différentes."
     }
   }
 }
