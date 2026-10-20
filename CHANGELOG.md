@@ -4,6 +4,34 @@ Suivi des évolutions de l'intégration. Chaque entrée contient la synthèse
 des changements effectués. Format inspiré de Keep a Changelog (version +
 date), antichronologique.
 
+## [0.8.0] — 2026-10-20
+
+### Fonctionnalité : bouton « Réinitialiser l'apprentissage »
+
+- **`button.py`** — Nouvelle entité bouton dans le bloc Configuration de
+  l'appareil : exécute `reset_learning` sans passer par les outils de
+  développement. Icône d'alerte (`mdi:restart-alert`). Effet : efface
+  les deltas confirmés (la tolérance adaptative repart de zéro) et
+  réinitialise le delta appris au delta de base.
+- **`coordinator.py`** — `async_reset_learning` envoie désormais une
+  notification de retour (si des cibles sont configurées) : elle
+  confirme l'action et rappele la base de repart et l'effacement des
+  deltas — l'avertissement d'usage accompagne l'action, puisque les
+  entités bouton ne peuvent pas déclencher de dialogue de confirmation
+  dans l'interface HA.
+- **`translations/`** — La description des options porte l'avertissement :
+  le bouton est à réserver à un changement de capteur ou à une
+  recalibration des niveaux bas/haut (fr/en).
+- **`README.md`** — Entité documentée avec son avertissement d'usage.
+
+### Notes de version
+
+- Décision de design (inchangée) : le cœur (machine à états, seuil de
+  bruit, tolérance) reste en % interne ; seules la saisie et l'affichage
+  sont en niveau brut (cf. 0.7.0).
+- Compilation OK, 27/27 tests existants verts ; entité et notification
+  à valider dans l'instance.
+
 ## [0.7.0] — 2026-10-20
 
 ### Fonctionnalité : « Delta d'un sac » exprimé en niveau (mesure brute)
