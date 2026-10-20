@@ -134,12 +134,27 @@ class PelletCoordinator:
         self._listeners.clear()
         # Les entités sont déjà déchargées à ce stade : on lâche leurs callbacks
         self._update_callbacks.clear()
-
     # -------------------------------------------------- entités (rAF pattern)
+
     @callback
-    def on_update(self, cb: Any) -> None:
-        """Enregistre un callback d'actualisation d'entité."""
+    def on_update(self, cb: Any) -> Any:
+        """Enregistre un callback d'actualisation d'entité.
+
+        Retourne la fonction de désabonnement : les entités s'abonnent
+        dans async_added_to_hass et se désabonnent dans
+        async_will_remove_from_hass, pour ne jamais laisser de callback
+        mort (entité non ajoutée ou retirée) dans la boucle.
+        """
         self._update_callbacks.append(cb)
+
+        @callback
+        def _unsub() -> None:
+            try:
+                self._update_callbacks.remove(cb)
+            except ValueError:
+                pass  # déjà retiré
+
+        return _unsub
 
     @callback
     def _notify_entities(self) -> None:

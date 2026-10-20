@@ -33,13 +33,29 @@ class PelletDernierRemplissage(EventEntity):
         self._attr_event_type = None
         self._attr_event_attributes: dict[str, Any] | None = None
         self._dernier_ts: float | None = None  # anti-doublon : timestamp du dernier event émis
-        coordinator.on_update(self._on_update)
         # Restauration du dernier événement persisté (sans le re-émettre)
         dernier = coordinator.dernier_evenement
         if dernier:
             self._dernier_ts = dernier.get("timestamp")
             self._attr_event_type = f"{DOMAIN}_remplissage"
             self._attr_event_attributes = dernier
+        self._unsub_update: Any = None
+
+    async def async_added_to_hass(self) -> None:
+        """Abonnement au coordinateur une fois l'entité réellement ajoutée.
+
+        S'abonner dans __init__ laisserait des callbacks morts si l'ajout
+        échouait : une mise à jour du coordinateur déclencherait alors
+        async_write_ha_state sur une entité sans hass
+        (« Attribute hass is None »).
+        """
+        self._unsub_update = self.coordinator.on_update(self._on_update)
+
+    async def async_will_remove_from_hass(self) -> None:
+        """Désabonnement : le coordinateur ne garde pas de référence morte."""
+        if self._unsub_update is not None:
+            self._unsub_update()
+            self._unsub_update = None
 
     def _on_update(self) -> None:
         dernier = self.coordinator.dernier_evenement
@@ -52,7 +68,9 @@ class PelletDernierRemplissage(EventEntity):
             f"{DOMAIN}_remplissage",
             {
                 "delta_pct": dernier["delta"],
-                "delta_niveau": self.coordinator.convertisseur.delta_pct_vers_niveau(dernier["delta"]),
+                "delta_niveau": self.coordinator.convertisseur.delta_pct_vers_niveau(
+                    dernier["delta"]
+                ),
                 "decision": str(dernier["decision"]),
                 "niveau_avant": dernier["niveau_avant"],
                 "niveau_apres": dernier["niveau_apres"],

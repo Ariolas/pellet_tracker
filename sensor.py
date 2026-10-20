@@ -49,12 +49,31 @@ class _PelletSensor(SensorEntity):
         self._attr_unique_id = f"{entry.entry_id}_{self._cle_unique}"
         self._attr_device_info = _device_info(entry)
         self._attr_native_value = None
-        coordinator.on_update(self._on_update)
+        self._unsub_update: Any = None
 
     @property
     def _cle_unique(self) -> str:
         """Suffixe d'unique_id propre à chaque entité."""
         raise NotImplementedError
+
+    async def async_added_to_hass(self) -> None:
+        """Abonnement au coordinateur une fois l'entité réellement ajoutée.
+
+        S'abonner dans __init__ laisserait des callbacks morts si l'ajout
+        échouait : une mise à jour du coordinateur déclencherait alors
+        async_write_ha_state sur une entité sans hass
+        (« Attribute hass is None »).
+        """
+        self._unsub_update = self.coordinator.on_update(self._on_update)
+        # Calcul immédiat : les valeurs apparaissent sans attendre le
+        # premier changement d'état du capteur.
+        self._on_update()
+
+    async def async_will_remove_from_hass(self) -> None:
+        """Désabonnement : le coordinateur ne garde pas de référence morte."""
+        if self._unsub_update is not None:
+            self._unsub_update()
+            self._unsub_update = None
 
     def _on_update(self) -> None:
         self._attr_native_value = self._calcul()

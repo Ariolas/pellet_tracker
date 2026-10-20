@@ -1,6 +1,8 @@
 """Binary sensor : remplissage en cours (machine à états non en veille)."""
 from __future__ import annotations
 
+from typing import Any
+
 from homeassistant.components.binary_sensor import (
     BinarySensorDeviceClass, BinarySensorEntity,
 )
@@ -30,7 +32,24 @@ class PelletRemplissageEnCours(BinarySensorEntity):
             name=entry.title,
         )
         self._attr_is_on = False
-        coordinator.on_update(self._on_update)
+        self._unsub_update: Any = None
+
+    async def async_added_to_hass(self) -> None:
+        """Abonnement au coordinateur une fois l'entité réellement ajoutée.
+
+        S'abonner dans __init__ laisserait des callbacks morts si l'ajout
+        échouait : une mise à jour du coordinateur déclencherait alors
+        async_write_ha_state sur une entité sans hass
+        (« Attribute hass is None »).
+        """
+        self._unsub_update = self.coordinator.on_update(self._on_update)
+        self._on_update()
+
+    async def async_will_remove_from_hass(self) -> None:
+        """Désabonnement : le coordinateur ne garde pas de référence morte."""
+        if self._unsub_update is not None:
+            self._unsub_update()
+            self._unsub_update = None
 
     def _on_update(self) -> None:
         self._attr_is_on = self.coordinator.detecteur.remplissage_en_cours
