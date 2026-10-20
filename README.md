@@ -20,7 +20,7 @@ L'assistant demande :
 | Champ | Description | Défaut |
 |---|---|---|
 | Capteur de niveau | `entity_id` du capteur (distance ou %) | — |
-| Service de notification | ex. `notify.mobile_app_pixel` | `notify.mobile_app_mon_tel` |
+| Appareils de notification | sélection multiple parmi les services `notify.*` existants ; vide = notifications désactivées | — |
 | Delta d'un sac | % gagné pour 1 sac de 15 kg (calibration terrain) | 8.0 |
 | Sacs initiaux | estimation de sacs déjà consommés au premier lancement | 0 |
 | Valeur cuve VIDE | mesure brute du capteur cuve vide | 0 |
@@ -59,6 +59,7 @@ les défauts (0 / 100) laissent la valeur inchangée.
 ## Entités créées (par appareil « Suivi granulés »)
 
 - `sensor` Niveau de remplissage (%), Sacs consommés, Sacs restants estimés, Delta d'un sac appris (entité diagnostique en lecture seule ; attributs : tolérance, deltas confirmés, calibration initiale)
+- `button` Tester la notification (envoie un test aux appareils sélectionnés)
 - `binary_sensor` Remplissage en cours
 - `event` Dernier remplissage (delta, décision, niveaux)
 

@@ -4,6 +4,43 @@ Suivi des évolutions de l'intégration. Chaque entrée contient la synthèse
 des changements effectués. Format inspiré de Keep a Changelog (version +
 date), antichronologique.
 
+## [0.6.0] — 2026-10-20
+
+### Fonctionnalité : sélection des appareils de notification
+
+- **`config_flow.py`** — La cible de notification n'est plus un champ
+  texte libre : c'est une **liste déroulante à sélection multiple**,
+  alimentée dynamiquement par les services `notify.*` réellement
+  enregistrés dans l'instance (assistant initial et options). Seules
+  des cibles valides peuvent être choisies ; une sélection vide
+  désactive simplement les notifications. Les cibles historiques
+  disparues sont élaguées à l'ouverture des options (un service
+  supprimé ne peut de toute façon plus être appelé).
+- **`coordinator.py`** — `notify_targets` devient une liste : toutes les
+  notifications (remplissage auto, partiel avec boutons, confirmation)
+  partent vers **tous** les appareils sélectionnés. Normalisation de la
+  valeur historique (chaîne unique → liste). Nouvelle méthode
+  `async_test_notification()`.
+- **`button.py`** — Nouvelle entité « Tester la notification »
+  (plateforme `button` ajoutée à `PLATFORMS`) : un clic envoie une
+  notification de test sur les appareils sélectionnés. Idiome HA
+  standard — les fenêtres de configuration ne peuvent pas contenir de
+  boutons cliquables. La description des options y renvoie.
+- **`translations/`** — Libellés « Appareils de notification
+  (sélection multiple) » + description des options (fr/en).
+
+### Notes de version
+
+- Vérifié avant implémentation : HA core n'expose pas de sélecteur
+  « service notification » (`ServiceSelector` inexistant dans
+  `homeassistant/helpers/selector.py`, contrairement à
+  `SelectSelector(multiple=True)` — pattern officiel du core, 46 usages).
+- Compatibilité : une configuration existante (chaîne unique) est
+  normalisée en liste sans intervention ; le champ devient `Optional`
+  (défaut vide) au lieu d'un texte pré-rempli factice
+  (`notify.mobile_app_mon_tel`).
+- Compilation OK, 22 tests existants verts ; flows et bouton non
+  testables sans instance HA.
 ## [0.5.0] — 2026-10-20
 
 ### Fonctionnalité : « Delta d'un sac » modifiable dans les options
