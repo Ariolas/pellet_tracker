@@ -17,7 +17,8 @@ from homeassistant.helpers.event import (
 from .const import (
     CONF_NOTIFY, CONF_SEUIL_BRUIT, CONF_FENETRE_HAUSSE,
     CONF_DUREE_STABILISATION, CONF_ALPHA_EMA, CONF_FENETRE_STD,
-    CONF_TOLERANCE_MIN, CONF_VALEUR_VIDE, CONF_VALEUR_PLEINE, CONF_DELTA_UN_SAC,
+    CONF_TOLERANCE_MIN, CONF_VALEUR_VIDE, CONF_VALEUR_PLEINE,
+    CONF_DELTA_UN_SAC,
     DEFAULT_SEUIL_BRUIT, DEFAULT_DUREE_STABILISATION,
     DEFAULT_FENETRE_HAUSSE, DEFAULT_ALPHA_EMA, DEFAULT_FENETRE_STD,
     DEFAULT_TOLERANCE_MIN, DEFAULT_DELTA_UN_SAC,
@@ -33,6 +34,19 @@ from .storage import PelletStorage
 _LOGGER = logging.getLogger(__name__)
 
 
+def _cibles_notify(valeur: Any) -> list[str]:
+    """Normalise la valeur de CONF_NOTIFY en liste de cibles.
+
+    Historique : la valeur était une chaîne unique ; les flows récents
+    produisent une liste (sélection multiple).
+    """
+    if valeur is None:
+        return []
+    if isinstance(valeur, str):
+        return [valeur]
+    return list(valeur)
+
+
 class PelletCoordinator:
     """Centralise toute la logique de suivi pour une config entry."""
 
@@ -42,7 +56,9 @@ class PelletCoordinator:
         self.storage = PelletStorage(hass, entry.entry_id)
 
         # Paramètres de la config entry (avec valeurs par défaut)
-        self.notify_target = entry.options.get(CONF_NOTIFY, entry.data.get(CONF_NOTIFY))
+        self.notify_targets = _cibles_notify(
+            entry.options.get(CONF_NOTIFY, entry.data.get(CONF_NOTIFY))
+        )
         seuil_bruit = entry.options.get(CONF_SEUIL_BRUIT, DEFAULT_SEUIL_BRUIT)
         duree_stab = entry.options.get(CONF_DUREE_STABILISATION, DEFAULT_DUREE_STABILISATION)
         fenetre_hausse = entry.options.get(CONF_FENETRE_HAUSSE, DEFAULT_FENETRE_HAUSSE)
@@ -260,49 +276,62 @@ class PelletCoordinator:
                      self.data.get("sacs_confirmes", 0),
                      self.data.get("sacs_manuels", 0))
 
-    async def _sauver_et_notifier(self, evenement: EvenementRemplissage, auto: bool) -> None:
-        await self.storage.async_sauver(self.data)
-        if self.notify_target:
+    async def _notifier(self, title: str, message: str,
+                        data: Optional[dict[str, Any]] = None) -> None:
+        """Envoie une notification sur toutes les cibles configurées."""
+        if not self.notify_targets:
+            _LOGGER.warning("Aucune cible de notification configurée")
+            return
+        for cible in self.notify_targets:
+            service_data: dict[str, Any] = {"title": title, "message": message}
+            if data:
+                service_data["data"] = data
             await self.hass.services.async_call(
                 "notify",
-                self.notify_target.removeprefix("notify."),
-                {
-                    "title": "Poêle à granulés",
-                    "message": (
-                        f"Remplissage détecté : +{evenement.delta:.1f}% "
-                        f"(≈ 1 sac) compté automatiquement."
-                        if auto else
-                        f"Remplissage confirmé : +{evenement.delta:.1f}%."
-                    ),
-                },
+                cible.removeprefix("notify."),
+                service_data,
                 blocking=True,
             )
+
+    async def _sauver_et_notifier(self, evenement: EvenementRemplissage, auto: bool) -> None:
+        await self.storage.async_sauver(self.data)
+        await self._notifier(
+            "Poêle à granulés",
+            (
+                f"Remplissage détecté : +{evenement.delta:.1f}% "
+                f"(≈ 1 sac) compté automatiquement."
+                if auto else
+                f"Remplissage confirmé : +{evenement.delta:.1f}%."
+            ),
+        )
 
     async def _notifier_partiel(self, evenement: EvenementRemplissage, action_id: str) -> None:
         """Notification avec boutons « Oui, 1 sac » / « Non »."""
         await self.storage.async_sauver(self.data)
-        if not self.notify_target:
-            _LOGGER.warning("Aucun service notify configuré pour la confirmation")
-            return
-        await self.hass.services.async_call(
-            "notify",
-            self.notify_target.removeprefix("notify."),
-            {
-                "title": "Poêle à granulés : remplissage partiel",
-                "message": (
-                    f"Hausse de {evenement.delta:.1f}% détectée "
-                    f"(≈ {evenement.delta / max(self.apprentissage.delta_un_sac, 0.1):.1f} sac). "
-                    "Compter 1 sac ?"
-                ),
-                "data": {
-                    "tag": action_id,
-                    "actions": [
-                        {"action": f"{ACTION_CONFIRM}:{action_id}", "title": "Oui, 1 sac"},
-                        {"action": f"{ACTION_CANCEL}:{action_id}", "title": "Non"},
-                    ],
-                },
+        await self._notifier(
+            "Poêle à granulés : remplissage partiel",
+            (
+                f"Hausse de {evenement.delta:.1f}% détectée "
+                f"(≈ {evenement.delta / max(self.apprentissage.delta_un_sac, 0.1):.1f} sac). "
+                "Compter 1 sac ?"
+            ),
+            data={
+                "tag": action_id,
+                "actions": [
+                    {"action": f"{ACTION_CONFIRM}:{action_id}", "title": "Oui, 1 sac"},
+                    {"action": f"{ACTION_CANCEL}:{action_id}", "title": "Non"},
+                ],
             },
-            blocking=True,
+        )
+
+    async def async_test_notification(self) -> None:
+        """Notification de test sur toutes les cibles configurées.
+
+        Utilisée par le bouton « Tester la notification ».
+        """
+        await self._notifier(
+            "Poêle à granulés",
+            "Notification de test de pellet_tracker : tout fonctionne.",
         )
 
     @callback

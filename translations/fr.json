@@ -5,7 +5,7 @@
         "description": "Suivi de la consommation de granulés du poêle.",
         "data": {
           "sensor_niveau": "Capteur de niveau de remplissage (%)",
-          "notify_service": "Service de notification mobile (ex. notify.mobile_app_pixel)",
+          "notify_service": "Appareils de notification (sélection multiple)",
           "delta_un_sac": "Delta d'un sac (% gagné pour 1 sac de 15 kg)",
           "sacs_initiaux": "Nombre de sacs estimés au lancement",
           "valeur_vide": "Valeur du capteur cuve VIDE (ex. distance la plus grande)",
@@ -23,12 +23,13 @@
   "options": {
     "step": {
       "init": {
+        "description": "Le bouton « Tester la notification » de l'appareil envoie une notification de test sur les appareils sélectionnés ci-dessous.",
         "data": {
           "delta_un_sac": "Delta d'un sac — base de départ (% gagné par sac de 15 kg, affinée par l'apprentissage)",
           "seuil_bruit_pct": "Seuil de bruit (%)",
           "duree_stabilisation_s": "Durée de stabilisation (s)",
           "fenetre_hausse_s": "Fenêtre de hausse rapide (s)",
-          "notify_service": "Service de notification mobile",
+          "notify_service": "Appareils de notification (sélection multiple)",
           "alpha_ema": "Coefficient de lissage EMA (0,05 à 1)",
           "fenetre_std": "Nb de deltas pour l'écart-type glissant",
           "tolerance_min_pct": "Plancher de tolérance de détection (%)",

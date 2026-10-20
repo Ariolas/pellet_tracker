@@ -4,7 +4,7 @@
       "user": {
         "data": {
           "sensor_niveau": "Fill level sensor (%)",
-          "notify_service": "Mobile notification service",
+          "notify_service": "Notification devices (multiple selection)",
           "delta_un_sac": "Delta for one bag (% gained per 15 kg bag)",
           "sacs_initiaux": "Estimated bags at first launch",
           "valeur_vide": "Sensor value when tank EMPTY (e.g. largest distance)",
@@ -22,12 +22,13 @@
   "options": {
     "step": {
       "init": {
+        "description": "The device button sends a test notification to the selected devices below.",
         "data": {
           "delta_un_sac": "Delta for one bag — starting base (% gained per 15 kg bag, refined by learning)",
           "seuil_bruit_pct": "Noise threshold (%)",
           "duree_stabilisation_s": "Stabilization duration (s)",
           "fenetre_hausse_s": "Fast rise window (s)",
-          "notify_service": "Mobile notification service",
+          "notify_service": "Notification devices (multiple selection)",
           "alpha_ema": "EMA smoothing coefficient (0.05 to 1)",
           "fenetre_std": "Rolling std-dev window (deltas)",
           "tolerance_min_pct": "Minimum detection tolerance (%)",
