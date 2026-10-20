@@ -24,6 +24,7 @@
     "step": {
       "init": {
         "data": {
+          "delta_un_sac": "Delta d'un sac — base de départ (% gagné par sac de 15 kg, affinée par l'apprentissage)",
           "seuil_bruit_pct": "Seuil de bruit (%)",
           "duree_stabilisation_s": "Durée de stabilisation (s)",
           "fenetre_hausse_s": "Fenêtre de hausse rapide (s)",

@@ -17,7 +17,7 @@ from homeassistant.helpers.event import (
 from .const import (
     CONF_NOTIFY, CONF_SEUIL_BRUIT, CONF_FENETRE_HAUSSE,
     CONF_DUREE_STABILISATION, CONF_ALPHA_EMA, CONF_FENETRE_STD,
-    CONF_TOLERANCE_MIN, CONF_VALEUR_VIDE, CONF_VALEUR_PLEINE,
+    CONF_TOLERANCE_MIN, CONF_VALEUR_VIDE, CONF_VALEUR_PLEINE, CONF_DELTA_UN_SAC,
     DEFAULT_SEUIL_BRUIT, DEFAULT_DUREE_STABILISATION,
     DEFAULT_FENETRE_HAUSSE, DEFAULT_ALPHA_EMA, DEFAULT_FENETRE_STD,
     DEFAULT_TOLERANCE_MIN, DEFAULT_DELTA_UN_SAC,
@@ -49,7 +49,9 @@ class PelletCoordinator:
         alpha = entry.options.get(CONF_ALPHA_EMA, DEFAULT_ALPHA_EMA)
         fenetre_std = entry.options.get(CONF_FENETRE_STD, DEFAULT_FENETRE_STD)
         tolerance_min = entry.options.get(CONF_TOLERANCE_MIN, DEFAULT_TOLERANCE_MIN)
-        delta_initial = entry.data.get("delta_un_sac", DEFAULT_DELTA_UN_SAC)
+        delta_initial = entry.options.get(
+            CONF_DELTA_UN_SAC, entry.data.get(CONF_DELTA_UN_SAC, DEFAULT_DELTA_UN_SAC)
+        )
         # Le capteur peut être un télémètre : la mesure brute est convertie
         # en % de remplissage avant d'alimenter la machine à états.
         valeur_vide = entry.options.get(
@@ -352,6 +354,14 @@ class PelletCoordinator:
         evts = self.data.get("evenements", [])
         return evts[-1] if evts else None
 
+    @property
+    def delta_initial(self) -> float:
+        """Base de départ saisie à la configuration (avant apprentissage)."""
+        return self.entry.options.get(
+            CONF_DELTA_UN_SAC,
+            self.entry.data.get(CONF_DELTA_UN_SAC, DEFAULT_DELTA_UN_SAC),
+        )
+
     # -------------------------------------------------- services
     async def async_add_bag(self, nombre: int = 1) -> None:
         """Service pellet_tracker.add_bag."""
@@ -372,7 +382,7 @@ class PelletCoordinator:
 
     async def async_reset_learning(self, delta_un_sac: Optional[float] = None) -> None:
         """Service pellet_tracker.reset_learning : repart de la calibration."""
-        self.apprentissage.reinitialiser(delta_un_sac or self.entry.data.get("delta_un_sac", DEFAULT_DELTA_UN_SAC))
+        self.apprentissage.reinitialiser(delta_un_sac or self.delta_initial)
         self._persister_delta_appris()
         self.data["deltas_confirmes"] = []
         await self.storage.async_sauver(self.data)

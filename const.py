@@ -7,6 +7,7 @@ PLATFORMS = ["sensor", "binary_sensor", "event"]
 CONF_SENSOR_NIVEAU = "sensor_niveau"        # entity_id du capteur de niveau (%)
 CONF_NOTIFY = "notify_service"              # ex. notify.mobile_app_pixel
 CONF_SACS_INIT = "sacs_initiaux"            # sacs estimés au premier lancement
+CONF_DELTA_UN_SAC = "delta_un_sac"           # % de base gagné par sac, avant apprentissage
 CONF_VALEUR_VIDE = "valeur_vide"             # valeur du capteur cuve vide (ex. distance max)
 CONF_VALEUR_PLEINE = "valeur_pleine"         # valeur du capteur cuve pleine (ex. distance min)
 CONF_SEUIL_BRUIT = "seuil_bruit_pct"        # variation considérée comme du bruit

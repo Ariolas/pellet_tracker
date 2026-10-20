@@ -23,6 +23,7 @@
     "step": {
       "init": {
         "data": {
+          "delta_un_sac": "Delta for one bag — starting base (% gained per 15 kg bag, refined by learning)",
           "seuil_bruit_pct": "Noise threshold (%)",
           "duree_stabilisation_s": "Stabilization duration (s)",
           "fenetre_hausse_s": "Fast rise window (s)",

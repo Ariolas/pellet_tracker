@@ -8,6 +8,7 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.const import PERCENTAGE
 from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.entity import EntityCategory
 
 from .const import CONF_SACS_INIT, DOMAIN
 from .coordinator import PelletCoordinator
@@ -120,6 +121,7 @@ class PelletDeltaUnSacSensor(_PelletSensor):
     _attr_native_unit_of_measurement = PERCENTAGE
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_icon = "mdi:tune"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC  # lecture seule : valeur apprise
 
     @property
     def _cle_unique(self) -> str:
@@ -135,5 +137,5 @@ class PelletDeltaUnSacSensor(_PelletSensor):
         return {
             "tolerance_pct": apprentissage.tolerance(),
             "deltas_confirmes": len(apprentissage.deltas_confirmes),
-            "delta_initial": self.coordinator.entry.data.get("delta_un_sac"),
+            "delta_initial": self.coordinator.delta_initial,
         }

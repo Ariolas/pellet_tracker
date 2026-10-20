@@ -16,8 +16,8 @@ from homeassistant.helpers.selector import (
 from .const import (
     DOMAIN, CONF_SENSOR_NIVEAU, CONF_NOTIFY, CONF_SEUIL_BRUIT,
     CONF_DUREE_STABILISATION, CONF_FENETRE_HAUSSE, CONF_SACS_INIT,
-    CONF_ALPHA_EMA, CONF_FENETRE_STD, CONF_TOLERANCE_MIN,
-    CONF_VALEUR_VIDE, CONF_VALEUR_PLEINE,
+    CONF_ALPHA_EMA, CONF_FENETRE_STD, CONF_TOLERANCE_MIN, CONF_DELTA_UN_SAC,
+    CONF_VALEUR_VIDE, CONF_VALEUR_PLEINE, DEFAULT_DELTA_UN_SAC,
     DEFAULT_NOTIFY, DEFAULT_SEUIL_BRUIT, DEFAULT_DUREE_STABILISATION,
     DEFAULT_FENETRE_HAUSSE, DEFAULT_ALPHA_EMA, DEFAULT_FENETRE_STD,
     DEFAULT_TOLERANCE_MIN, DEFAULT_VALEUR_VIDE, DEFAULT_VALEUR_PLEINE,
@@ -28,7 +28,7 @@ STEP_USER_SCHEMA = vol.Schema({
         EntitySelectorConfig(domain="sensor")
     ),
     vol.Required(CONF_NOTIFY, default=DEFAULT_NOTIFY): str,
-    vol.Required("delta_un_sac", default=8.0): vol.All(
+    vol.Required(CONF_DELTA_UN_SAC, default=DEFAULT_DELTA_UN_SAC): vol.All(
         vol.Coerce(float), vol.Range(min=0.1, max=100)
     ),
     vol.Required(CONF_SACS_INIT, default=0): vol.All(
@@ -100,6 +100,15 @@ class PelletTrackerOptionsFlow(OptionsFlow):
             step_id="init",
             errors=errors,
             data_schema=vol.Schema({
+                # Base de départ du delta d'un sac : affinée ensuite par
+                # l'apprentissage EMA. Modifiable sans réinstallation ;
+                # le service reset_learning repart de cette valeur.
+                vol.Required(CONF_DELTA_UN_SAC,
+                    default=options.get(
+                        CONF_DELTA_UN_SAC,
+                        self._config_entry.data.get(CONF_DELTA_UN_SAC, DEFAULT_DELTA_UN_SAC)
+                    )
+                ): vol.All(vol.Coerce(float), vol.Range(min=0.1, max=100)),
                 vol.Required(CONF_SEUIL_BRUIT,
                     default=options.get(CONF_SEUIL_BRUIT, DEFAULT_SEUIL_BRUIT)
                 ): vol.All(vol.Coerce(float), vol.Range(min=0.2, max=10)),
