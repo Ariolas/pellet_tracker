@@ -16,8 +16,12 @@ from homeassistant.helpers.event import (
 
 from .const import (
     CONF_NOTIFY, CONF_SEUIL_BRUIT, CONF_FENETRE_HAUSSE,
-    CONF_DUREE_STABILISATION, EVENT_MOBILE_APP_ACTION,
-    ACTION_CONFIRM, ACTION_CANCEL,
+    CONF_DUREE_STABILISATION, CONF_ALPHA_EMA, CONF_FENETRE_STD,
+    CONF_TOLERANCE_MIN,
+    DEFAULT_SEUIL_BRUIT, DEFAULT_DUREE_STABILISATION,
+    DEFAULT_FENETRE_HAUSSE, DEFAULT_ALPHA_EMA, DEFAULT_FENETRE_STD,
+    DEFAULT_TOLERANCE_MIN, DEFAULT_DELTA_UN_SAC,
+    EVENT_MOBILE_APP_ACTION, ACTION_CONFIRM, ACTION_CANCEL,
 )
 from .detector import (
     ApprentissageAdaptatif, Decision, DetecteurRemplissage,
@@ -38,13 +42,21 @@ class PelletCoordinator:
 
         # Paramètres de la config entry (avec valeurs par défaut)
         self.notify_target = entry.options.get(CONF_NOTIFY, entry.data.get(CONF_NOTIFY))
-        seuil_bruit = entry.options.get(CONF_SEUIL_BRUIT, 1.5)
-        duree_stab = entry.options.get(CONF_DUREE_STABILISATION, 180)
-        fenetre_hausse = entry.options.get(CONF_FENETRE_HAUSSE, 120)
-        delta_initial = entry.data.get("delta_un_sac", 8.0)
+        seuil_bruit = entry.options.get(CONF_SEUIL_BRUIT, DEFAULT_SEUIL_BRUIT)
+        duree_stab = entry.options.get(CONF_DUREE_STABILISATION, DEFAULT_DUREE_STABILISATION)
+        fenetre_hausse = entry.options.get(CONF_FENETRE_HAUSSE, DEFAULT_FENETRE_HAUSSE)
+        alpha = entry.options.get(CONF_ALPHA_EMA, DEFAULT_ALPHA_EMA)
+        fenetre_std = entry.options.get(CONF_FENETRE_STD, DEFAULT_FENETRE_STD)
+        tolerance_min = entry.options.get(CONF_TOLERANCE_MIN, DEFAULT_TOLERANCE_MIN)
+        delta_initial = entry.data.get("delta_un_sac", DEFAULT_DELTA_UN_SAC)
 
         self.data: dict[str, Any] = {}
-        self.apprentissage = ApprentissageAdaptatif(delta_un_sac=delta_initial)
+        self.apprentissage = ApprentissageAdaptatif(
+            delta_un_sac=delta_initial,
+            alpha=alpha,
+            fenetre_std=fenetre_std,
+            tolerance_min=tolerance_min,
+        )
         self.detecteur = DetecteurRemplissage(
             delta_un_sac=delta_initial,
             seuil_bruit_pct=seuil_bruit,
@@ -83,6 +95,8 @@ class PelletCoordinator:
         for off in self._listeners:
             off()
         self._listeners.clear()
+        # Les entités sont déjà déchargées à ce stade : on lâche leurs callbacks
+        self._update_callbacks.clear()
 
     # -------------------------------------------------- entités (rAF pattern)
     @callback
@@ -148,6 +162,7 @@ class PelletCoordinator:
             # delta ≈ 1 sac → comptage automatique + apprentissage
             self._compter_sac(source="auto")
             self.apprentissage.confirmer(evenement.delta)
+            self._persister_delta_appris()
             ev_dict["confirme"] = True
             self.data["evenements"].append(ev_dict)
             self.hass.async_create_task(self._sauver_et_notifier(evenement, auto=True))
@@ -158,11 +173,23 @@ class PelletCoordinator:
                 "action_id": action_id,
                 "delta": evenement.delta,
                 "timestamp": maintenant,
+                # Index de l'événement concerné dans l'historique : la
+                # réponse ne doit marquer que cet événement, même si
+                # d'autres sont ajoutés entre-temps.
+                "evenement_index": len(self.data["evenements"]),
             }
             self.data["evenements"].append(ev_dict)
             self.hass.async_create_task(self._notifier_partiel(evenement, action_id))
         else:
             _LOGGER.info("Remplissage ignoré (delta %.2f%% ≈ bruit)", evenement.delta)
+
+    def _persister_delta_appris(self) -> None:
+        """Synchronise le delta appris dans les données persistées.
+
+        Sans cela, data["delta_un_sac"] resterait None et l'apprentissage
+        serait perdu à chaque redémarrage.
+        """
+        self.data["delta_un_sac"] = self.apprentissage.delta_un_sac
 
     # -------------------------------------------------- timer de confirmation
     def _gerer_timer(self, maintenant: float) -> None:
@@ -197,10 +224,14 @@ class PelletCoordinator:
         """Incrémente le compteur de sacs (auto, confirmation ou service)."""
         if source == "auto":
             self.data["sacs_ajoutes"] = self.data.get("sacs_ajoutes", 0) + nombre
+        elif source == "confirmation":
+            self.data["sacs_confirmes"] = self.data.get("sacs_confirmes", 0) + nombre
         else:
             self.data["sacs_manuels"] = self.data.get("sacs_manuels", 0) + nombre
-        _LOGGER.info("Sac compté (%s) — total auto=%s manuels=%s",
-                     source, self.data["sacs_ajoutes"], self.data["sacs_manuels"])
+        _LOGGER.info("Sac compté (%s) — total auto=%s confirmes=%s manuels=%s",
+                     source, self.data.get("sacs_ajoutes", 0),
+                     self.data.get("sacs_confirmes", 0),
+                     self.data.get("sacs_manuels", 0))
 
     async def _sauver_et_notifier(self, evenement: EvenementRemplissage, auto: bool) -> None:
         await self.storage.async_sauver(self.data)
@@ -258,14 +289,17 @@ class PelletCoordinator:
         if not attente or attente["action_id"] != action_id:
             return  # réponse périmée ou déjà traitée
         self.data["attente_confirmation"] = None
-        if self.data.get("evenements"):
-            # Trace la réponse de l'utilisateur dans l'historique
-            self.data["evenements"][-1]["confirme"] = action.startswith(ACTION_CONFIRM)
+        index = attente.get("evenement_index")
+        evenements = self.data.get("evenements", [])
+        if index is not None and 0 <= index < len(evenements):
+            # Trace la réponse de l'utilisateur sur l'événement correspondant
+            evenements[index]["confirme"] = action.startswith(ACTION_CONFIRM)
         if action.startswith(ACTION_CONFIRM):
             delta = attente["delta"]
             self._compter_sac(source="confirmation")
             # Confirmation utilisateur → apprentissage sur ce delta partiel
             self.apprentissage.confirmer(delta)
+            self._persister_delta_appris()
             _LOGGER.info("Remplissage partiel confirmé (+%.2f%%) → 1 sac compté", delta)
         else:
             _LOGGER.info("Remplissage partiel refusé par l'utilisateur")
@@ -302,14 +336,19 @@ class PelletCoordinator:
 
     async def async_reset_counter(self) -> None:
         """Service pellet_tracker.reset_counter."""
-        self.data.update({"sacs_ajoutes": 0, "sacs_manuels": 0, "niveau_consome_pct": 0.0})
+        self.data.update({
+            "sacs_ajoutes": 0,
+            "sacs_confirmes": 0,
+            "sacs_manuels": 0,
+            "niveau_consome_pct": 0.0,
+        })
         await self.storage.async_sauver(self.data)
         self._notify_entities()
 
     async def async_reset_learning(self, delta_un_sac: Optional[float] = None) -> None:
         """Service pellet_tracker.reset_learning : repart de la calibration."""
-        self.apprentissage.reinitialiser(delta_un_sac or self.entry.data.get("delta_un_sac", 8.0))
-        self.data["delta_un_sac"] = self.apprentissage.delta_un_sac
+        self.apprentissage.reinitialiser(delta_un_sac or self.entry.data.get("delta_un_sac", DEFAULT_DELTA_UN_SAC))
+        self._persister_delta_appris()
         self.data["deltas_confirmes"] = []
         await self.storage.async_sauver(self.data)
         self._notify_entities()

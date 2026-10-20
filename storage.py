@@ -32,6 +32,7 @@ class PelletStorage:
             data = {
                 "sacs_ajoutes": 0,       # compteur cumulatif de sacs ajoutés
                 "sacs_manuels": 0,        # sacs comptés manuellement (service)
+                "sacs_confirmes": 0,      # sacs comptés après confirmation mobile
                 "niveau_consome_pct": 0.0,  # % consommé cumulé (baisses)
                 "delta_un_sac": None,      # None → valeur de config au 1er lancement
                 "deltas_confirmes": [],
