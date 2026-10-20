@@ -4,6 +4,36 @@ Suivi des évolutions de l'intégration. Chaque entrée contient la synthèse
 des changements effectués. Format inspiré de Keep a Changelog (version +
 date), antichronologique.
 
+## [0.4.0] — 2026-10-20
+
+### Fonctionnalité : entité « Delta d'un sac (appris) »
+
+- **`sensor.py`** — Nouvelle entité « Delta d'un sac (appris) » exposant
+  la calibration EMA apprise, pour suivre l'apprentissage en direct et
+  détecter une dérive sans ouvrir le `.storage`. Attributs de diagnostic :
+  `tolerance_pct` (tolérance adaptative courante), `deltas_confirmes`
+  (nombre de deltas dans la fenêtre glissante), `delta_initial`
+  (calibration saisie à l'installation). Rattachée au même appareil,
+  même mécanique unique_id/DeviceInfo.
+
+### Corrections
+
+- **`binary_sensor.py`** — Device class du « Remplissage en cours » :
+  `OCCUPANCY` (présence d'une personne, sémantique trompeuse) remplacée
+  par `UPDATE`, plus proche du sens « mise à jour de la cuve en cours ».
+  Icône et libellés d'état HA adaptés en conséquence.
+- **`manifest.json`** — Suppression des clés `documentation` et
+  `issue_tracker` (URLs placeholders mortes) : les boutons « Documentation »
+  et « Signaler un problème » disparaissent de la page de l'intégration au
+  lieu d'ouvrir une erreur de navigateur. À rétablir avec de vraies URLs
+  le jour où le projet est hébergé.
+
+### Notes de version
+
+- Entité purement additive (lecture seule) : aucun impact sur le stockage
+  ou la détection. Compilation et 22 tests existants verts ; rien à
+  tester côté machine à états (non concernée).
+
 ## [0.3.0] — 2026-10-20
 
 ### Fonctionnalité : support des capteurs de distance (télémètre)
