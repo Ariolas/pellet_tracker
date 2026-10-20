@@ -4,13 +4,15 @@ from __future__ import annotations
 from typing import Any
 
 from homeassistant.components.event import EventEntity
+from homeassistant.helpers.device_registry import DeviceInfo
+
 from .const import DOMAIN
 from .coordinator import PelletCoordinator
 from .__init__ import PelletConfigEntry
 
 
 async def async_setup_entry(hass, entry: PelletConfigEntry, async_add_entities) -> None:
-    async_add_entities([PelletDernierRemplissage(entry.runtime_data)])
+    async_add_entities([PelletDernierRemplissage(entry.runtime_data, entry)])
 
 
 class PelletDernierRemplissage(EventEntity):
@@ -18,10 +20,16 @@ class PelletDernierRemplissage(EventEntity):
     la date et les attributs le détail (delta, décision, niveaux)."""
 
     _attr_name = "Dernier remplissage"
-    _event_types = [f"{DOMAIN}_remplissage"]
+    _attr_has_entity_name = True
+    _attr_event_types = [f"{DOMAIN}_remplissage"]
 
-    def __init__(self, coordinator: PelletCoordinator) -> None:
+    def __init__(self, coordinator: PelletCoordinator, entry: PelletConfigEntry) -> None:
         self.coordinator = coordinator
+        self._attr_unique_id = f"{entry.entry_id}_dernier_remplissage"
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, entry.entry_id)},
+            name=entry.title,
+        )
         self._attr_event_type = None
         self._attr_event_attributes: dict[str, Any] | None = None
         self._dernier_ts: float | None = None  # anti-doublon : timestamp du dernier event émis

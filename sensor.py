@@ -7,16 +7,25 @@ from homeassistant.components.sensor import (
     SensorDeviceClass, SensorEntity, SensorStateClass,
 )
 from homeassistant.const import PERCENTAGE
+from homeassistant.helpers.device_registry import DeviceInfo
 
-from .const import CONF_SACS_INIT
+from .const import CONF_SACS_INIT, DOMAIN
 from .coordinator import PelletCoordinator
 from .__init__ import PelletConfigEntry
+
+
+def _device_info(entry: PelletConfigEntry) -> DeviceInfo:
+    """Appareil commun : regroupe toutes les entités de l'entry."""
+    return DeviceInfo(
+        identifiers={(DOMAIN, entry.entry_id)},
+        name=entry.title,
+    )
 
 
 async def async_setup_entry(hass, entry: PelletConfigEntry, async_add_entities) -> None:
     coordinator = entry.runtime_data
     async_add_entities([
-        PelletNiveauSensor(coordinator),
+        PelletNiveauSensor(coordinator, entry),
         PelletSacsConsommesSensor(coordinator, entry),
         PelletSacsRestantsSensor(coordinator, entry),
     ])
@@ -28,10 +37,17 @@ class _PelletSensor(SensorEntity):
     _attr_has_entity_name = True
     _attr_should_poll = False
 
-    def __init__(self, coordinator: PelletCoordinator) -> None:
+    def __init__(self, coordinator: PelletCoordinator, entry: PelletConfigEntry) -> None:
         self.coordinator = coordinator
+        self._attr_unique_id = f"{entry.entry_id}_{self._cle_unique}"
+        self._attr_device_info = _device_info(entry)
         self._attr_native_value = None
         coordinator.on_update(self._on_update)
+
+    @property
+    def _cle_unique(self) -> str:
+        """Suffixe d'unique_id propre à chaque entité."""
+        raise NotImplementedError
 
     def _on_update(self) -> None:
         self._attr_native_value = self._calcul()
@@ -48,6 +64,10 @@ class PelletNiveauSensor(_PelletSensor):
     _attr_device_class = SensorDeviceClass.BATTERY  # % avec icône adaptée
     _attr_state_class = SensorStateClass.MEASUREMENT
 
+    @property
+    def _cle_unique(self) -> str:
+        return "niveau"
+
     def _calcul(self) -> float | None:
         # `is not None` : un niveau de 0 % est une valeur valide (cuve vide)
         niveau = self.coordinator.detecteur.niveau_actuel
@@ -61,8 +81,12 @@ class PelletSacsConsommesSensor(_PelletSensor):
     _attr_state_class = SensorStateClass.TOTAL_INCREASING
 
     def __init__(self, coordinator: PelletCoordinator, entry: PelletConfigEntry) -> None:
-        super().__init__(coordinator)
+        super().__init__(coordinator, entry)
         self._sacs_init = entry.data.get(CONF_SACS_INIT, 0)
+
+    @property
+    def _cle_unique(self) -> str:
+        return "sacs_consommes"
 
     def _calcul(self) -> float | None:
         # Consommation estimée + sacs initiaux déclarés au lancement
@@ -74,6 +98,10 @@ class PelletSacsRestantsSensor(_PelletSensor):
     _attr_name = "Sacs restants estimés"
     _attr_native_unit_of_measurement = "sacs"
     _attr_state_class = SensorStateClass.MEASUREMENT
+
+    @property
+    def _cle_unique(self) -> str:
+        return "sacs_restants"
 
     def _calcul(self) -> float | None:
         restants = self.coordinator.sacs_restants
