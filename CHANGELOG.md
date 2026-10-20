@@ -4,6 +4,34 @@ Suivi des évolutions de l'intégration. Chaque entrée contient la synthèse
 des changements effectués. Format inspiré de Keep a Changelog (version +
 date), antichronologique.
 
+## [0.8.2] — 2026-10-20
+
+### Correction bloquante (remontée par l'instance HA)
+
+- **Abonnement des entités au coordinateur** — Appui sur le bouton
+  « Réinitialiser l'apprentissage » : `Attribute hass is None for
+  <entity unknown.unknown=unknown>`. Cause : chaque entité s'abonnait
+  au coordinateur dans son `__init__` (avant d'être ajoutée à HA) et ne
+  se désabonnait jamais ; une entité finalement non ajoutée laissait un
+  callback mort, et le premier `_notify_entities` (déclenché par le
+  bouton) appelait `async_write_ha_state` sur cette entité fantôme —
+  sans `hass` ni `entity_id`. Un seul callback mort bloquait toute la
+  boucle de mise à jour.
+- **Correctif** — `coordinator.on_update` retourne maintenant une
+  fonction de désabonnement ; les entités (`sensor.py`,
+  `binary_sensor.py`, `event.py`) s'abonnent dans
+  `async_added_to_hass` et se désabonnent dans
+  `async_will_remove_from_hass`. Une entité jamais ajoutée ne s'abonne
+  plus du tout : plus de fantôme possible, quelle que soit la cause.
+- **Effet secondaire positif** — L'abonnement calcule immédiatement la
+  valeur : les entités affichent leurs données dès l'ajout, sans
+  attendre le premier changement d'état du capteur.
+
+### Notes de version
+
+- 27/27 tests verts (aucune logique de détection touchée).
+- À déployer avec redémarrage complet de HA.
+
 ## [0.8.1] — 2026-10-20
 
 ### Correction bloquante (remontée par l'instance HA)
