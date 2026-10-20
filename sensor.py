@@ -120,7 +120,7 @@ class _PelletConfigSensor(_PelletSensor):
     l'appareil dans le bloc « Configuration » (lecture seule — la saisie
     se fait dans les options de l'intégration)."""
 
-    _attr_entity_category = EntityCategory.CONFIGURATION
+    _attr_entity_category = EntityCategory.CONFIG
 
 
 class PelletNiveauBasSensor(_PelletConfigSensor):

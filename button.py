@@ -57,7 +57,7 @@ class PelletResetLearningButton(ButtonEntity):
     _attr_has_entity_name = True
     _attr_should_poll = False
     _attr_icon = "mdi:restart-alert"
-    _attr_entity_category = EntityCategory.CONFIGURATION
+    _attr_entity_category = EntityCategory.CONFIG
 
     def __init__(self, coordinator: PelletCoordinator, entry: PelletConfigEntry) -> None:
         self.coordinator = coordinator

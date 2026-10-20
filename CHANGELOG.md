@@ -4,6 +4,27 @@ Suivi des évolutions de l'intégration. Chaque entrée contient la synthèse
 des changements effectués. Format inspiré de Keep a Changelog (version +
 date), antichronologique.
 
+## [0.8.1] — 2026-10-20
+
+### Correction bloquante (remontée par l'instance HA)
+
+- **`sensor.py`, `button.py`** — `AttributeError: EntityCategory has no
+  attribute 'CONFIGURATION'` au chargement de la plateforme `sensor` :
+  l'attribut correct de l'enum HA est **`EntityCategory.CONFIG`**
+  (les valeurs sont `CONFIG`, `DIAGNOSTIC`, `SYSTEM`). La plateforme
+  `sensor` ne se chargeait pas du tout (boutons et configuration
+  concernés). `DIAGNOSTIC`, utilisé ailleurs, était correct.
+  L'erreur ne pouvait pas être détectée hors instance : la compilation
+  ne vérifie pas les attributs d'un enum externe.
+
+### Notes de version
+
+- 27/27 tests verts (logique inchangée).
+- Leçon de process : les attributs d'API HA (enums, constantes) doivent
+  être vérifiés dans le code du core avant usage, comme cela a été fait
+  pour les sélecteurs — c'est désormais implicite via le README de
+  développement (AGENTS.md, vérifications).
+
 ## [0.8.0] — 2026-10-20
 
 ### Fonctionnalité : bouton « Réinitialiser l'apprentissage »
