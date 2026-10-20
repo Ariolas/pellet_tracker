@@ -7,7 +7,7 @@ import voluptuous as vol
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall, callback
-from homeassistant.helpers.event import async_track_event
+from homeassistant.exceptions import ServiceValidationError
 
 from .const import (
     DOMAIN, PLATFORMS, EVENT_MOBILE_APP_ACTION,
@@ -36,7 +36,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: PelletConfigEntry) -> bo
     entry.runtime_data = coordinator
 
     # Écoute des réponses aux notifications mobiles (boutons Oui/Non)
-    unsub_action = async_track_event(hass, EVENT_MOBILE_APP_ACTION, coordinator.on_notification_action)
+    unsub_action = hass.bus.async_listen(
+        EVENT_MOBILE_APP_ACTION, coordinator.on_notification_action
+    )
 
     # Enregistrement des services (une seule fois pour le domaine)
     _register_services(hass)
@@ -52,12 +54,26 @@ async def async_setup_entry(hass: HomeAssistant, entry: PelletConfigEntry) -> bo
 
 async def async_unload_entry(hass: HomeAssistant, entry: PelletConfigEntry) -> bool:
     """Déchargement propre d'une config entry."""
-    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    if unload_ok:
+        # Les services sont globaux au domaine : on ne les retire que
+        # lorsque plus aucune entry n'est active.
+        if not _loaded_entries(hass):
+            _remove_services(hass)
+    return unload_ok
 
 
 async def _async_update_listener(hass: HomeAssistant, entry: PelletConfigEntry) -> None:
     """Rechargement de l'entry quand les options changent."""
     await hass.config_entries.async_reload(entry.entry_id)
+
+
+def _loaded_entries(hass: HomeAssistant) -> list[PelletConfigEntry]:
+    """Entries actives du domaine (chargées et non désactivées)."""
+    return [
+        e for e in hass.config_entries.async_entries(DOMAIN)
+        if e.state == "loaded" and not e.disabled_by
+    ]
 
 
 @callback
@@ -68,10 +84,11 @@ def _register_services(hass: HomeAssistant) -> None:
 
     def _coordinator() -> PelletCoordinator:
         # Une seule entry attendue ; sinon on prend la première active
-        entries = [
-            e for e in hass.config_entries.async_entries(DOMAIN)
-            if e.state == "loaded" and not e.disabled_by
-        ]
+        entries = _loaded_entries(hass)
+        if not entries:
+            raise ServiceValidationError(
+                "Aucune configuration pellet_tracker active pour le service"
+            )
         return entries[0].runtime_data
 
     async def _add_bag(call: ServiceCall) -> None:
@@ -86,3 +103,11 @@ def _register_services(hass: HomeAssistant) -> None:
     hass.services.async_register(DOMAIN, SERVICE_ADD_BAG, _add_bag, SCHEMA_ADD_BAG)
     hass.services.async_register(DOMAIN, SERVICE_RESET_COUNTER, _reset_counter)
     hass.services.async_register(DOMAIN, SERVICE_RESET_LEARNING, _reset_learning, SCHEMA_RESET_LEARNING)
+
+
+@callback
+def _remove_services(hass: HomeAssistant) -> None:
+    """Retire les services du domaine (dernière entry déchargée)."""
+    for service in (SERVICE_ADD_BAG, SERVICE_RESET_COUNTER, SERVICE_RESET_LEARNING):
+        if hass.services.has_service(DOMAIN, service):
+            hass.services.async_remove(DOMAIN, service)
