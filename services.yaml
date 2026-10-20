@@ -31,7 +31,7 @@ reset_learning:
     delta_un_sac:
       name: Delta d'un sac (%)
       description: >
-        Valeur de calibration terrain (% gagné pour 1 sac de 15 kg).
+        Différence de niveau brute pour 1 sac de 15 kg (mesurée avant / après remplissage).
         Laisse vide pour reprendre la valeur de la configuration.
       required: false
       advanced: false
@@ -40,4 +40,4 @@ reset_learning:
           min: 0.1
           max: 100
           step: 0.1
-          mode: box
+          mode: box

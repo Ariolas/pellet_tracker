@@ -280,3 +280,22 @@ class ConvertisseurNiveau:
         # arrondi a 2 decimales : evite la poussiere de flottant issue de
         # la conversion (identite exacte en mode capteur %)
         return round(max(0.0, min(100.0, pct)), 2)
+
+    def delta_niveau_vers_pct(self, delta: float) -> float:
+        """Convertit un delta exprimé en niveau brut (ex. cm) en %.
+
+        Le delta d'un sac est saisi en niveau brut : plus facile à
+        mesurer (niveau avant remplissage - niveau après). La machine
+        à états travaillant en %, la conversion se fait ici.
+        """
+        etendue = self.etendue
+        if etendue == 0:
+            return float(delta)
+        return round(abs(float(delta)) / abs(etendue) * 100.0, 3)
+
+    def delta_pct_vers_niveau(self, delta_pct: float) -> float:
+        """Convertit un delta interne (%) en niveau brut, pour l'affichage."""
+        etendue = self.etendue
+        if etendue == 0:
+            return float(delta_pct)
+        return round(abs(float(delta_pct)) / 100.0 * abs(etendue), 3)

@@ -1,4 +1,4 @@
-"""Entités sensor : niveau %, sacs consommés, sacs restants."""
+"""Entités sensor : niveau %, sacs consommés, sacs restants, calibration."""
 from __future__ import annotations
 
 from typing import Any
@@ -29,6 +29,11 @@ async def async_setup_entry(hass, entry: PelletConfigEntry, async_add_entities) 
         PelletNiveauSensor(coordinator, entry),
         PelletSacsConsommesSensor(coordinator, entry),
         PelletSacsRestantsSensor(coordinator, entry),
+        # Bloc « Configuration » de l'appareil : calibration saisie
+        PelletNiveauBasSensor(coordinator, entry),
+        PelletNiveauHautSensor(coordinator, entry),
+        PelletDeltaBaseSensor(coordinator, entry),
+        # Bloc « Diagnostic » : valeur apprise
         PelletDeltaUnSacSensor(coordinator, entry),
     ])
 
@@ -110,32 +115,84 @@ class PelletSacsRestantsSensor(_PelletSensor):
         return round(restants, 2) if restants is not None else None
 
 
+class _PelletConfigSensor(_PelletSensor):
+    """Base des entités de configuration : valeur saisie, visible sur
+    l'appareil dans le bloc « Configuration » (lecture seule — la saisie
+    se fait dans les options de l'intégration)."""
+
+    _attr_entity_category = EntityCategory.CONFIGURATION
+
+
+class PelletNiveauBasSensor(_PelletConfigSensor):
+    """Valeur du capteur correspondant à la cuve VIDE (niveau bas)."""
+    _attr_name = "Niveau bas (cuve vide)"
+    _attr_icon = "mdi:arrow-collapse-down"
+
+    @property
+    def _cle_unique(self) -> str:
+        return "niveau_bas"
+
+    def _calcul(self) -> float:
+        return self.coordinator.convertisseur.valeur_vide
+
+
+class PelletNiveauHautSensor(_PelletConfigSensor):
+    """Valeur du capteur correspondant à la cuve PLEINE (niveau haut)."""
+    _attr_name = "Niveau haut (cuve pleine)"
+    _attr_icon = "mdi:arrow-collapse-up"
+
+    @property
+    def _cle_unique(self) -> str:
+        return "niveau_haut"
+
+    def _calcul(self) -> float:
+        return self.coordinator.convertisseur.valeur_pleine
+
+
+class PelletDeltaBaseSensor(_PelletConfigSensor):
+    """Delta d'un sac de base (niveau brut), tel que configuré."""
+    _attr_name = "Delta d'un sac (base)"
+    _attr_icon = "mdi:counter"
+
+    @property
+    def _cle_unique(self) -> str:
+        return "delta_base"
+
+    def _calcul(self) -> float:
+        return self.coordinator.delta_initial
+
+
 class PelletDeltaUnSacSensor(_PelletSensor):
-    """Delta % appris pour un sac : suivi de la calibration en direct.
+    """Delta de NIVEAU appris pour un sac : suivi de la calibration en direct.
 
     Permet de surveiller la dérive de l'apprentissage EMA (et de détecter
     une calibration polluée par de mauvaises confirmations) directement
     depuis l'interface, sans ouvrir le .storage.
     """
     _attr_name = "Delta d'un sac (appris)"
-    _attr_native_unit_of_measurement = PERCENTAGE
     _attr_state_class = SensorStateClass.MEASUREMENT
-    _attr_icon = "mdi:tune"
+    _attr_icon = "mdi:ruler"
     _attr_entity_category = EntityCategory.DIAGNOSTIC  # lecture seule : valeur apprise
 
     @property
     def _cle_unique(self) -> str:
         return "delta_un_sac"
 
-    def _calcul(self) -> float | None:
-        return round(self.coordinator.apprentissage.delta_un_sac, 3)
+    def _calcul(self) -> float:
+        # La valeur interne est en % : restituée en niveau brut (l'unité
+        # dans laquelle l'utilisateur a saisi la base).
+        return self.coordinator.convertisseur.delta_pct_vers_niveau(
+            self.coordinator.apprentissage.delta_un_sac
+        )
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        """Diagnostic de l'apprentissage : tolérance, deltas, calibration d'origine."""
+        """Diagnostic de l'apprentissage : tolérance, deltas, base d'origine."""
         apprentissage = self.coordinator.apprentissage
         return {
-            "tolerance_pct": apprentissage.tolerance(),
+            "tolerance_niveau": self.coordinator.convertisseur.delta_pct_vers_niveau(
+                apprentissage.tolerance()
+            ),
             "deltas_confirmes": len(apprentissage.deltas_confirmes),
-            "delta_initial": self.coordinator.delta_initial,
+            "delta_base": self.coordinator.delta_initial,
         }

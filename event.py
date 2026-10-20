@@ -52,6 +52,7 @@ class PelletDernierRemplissage(EventEntity):
             f"{DOMAIN}_remplissage",
             {
                 "delta_pct": dernier["delta"],
+                "delta_niveau": self.coordinator.convertisseur.delta_pct_vers_niveau(dernier["delta"]),
                 "decision": str(dernier["decision"]),
                 "niveau_avant": dernier["niveau_avant"],
                 "niveau_apres": dernier["niveau_apres"],

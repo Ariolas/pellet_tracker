@@ -6,7 +6,7 @@
         "data": {
           "sensor_niveau": "Capteur de niveau de remplissage (%)",
           "notify_service": "Appareils de notification (sélection multiple)",
-          "delta_un_sac": "Delta d'un sac (% gagné pour 1 sac de 15 kg)",
+          "delta_un_sac": "Delta d'un sac (différence de niveau pour 1 sac de 15 kg)",
           "sacs_initiaux": "Nombre de sacs estimés au lancement",
           "valeur_vide": "Valeur du capteur cuve VIDE (ex. distance la plus grande)",
           "valeur_pleine": "Valeur du capteur cuve PLEINE (ex. distance la plus courte)"
@@ -25,7 +25,7 @@
       "init": {
         "description": "Le bouton « Tester la notification » de l'appareil envoie une notification de test sur les appareils sélectionnés ci-dessous.",
         "data": {
-          "delta_un_sac": "Delta d'un sac — base de départ (% gagné par sac de 15 kg, affinée par l'apprentissage)",
+          "delta_un_sac": "Delta d'un sac — base de départ (différence de niveau par sac de 15 kg, affinée par l'apprentissage)",
           "seuil_bruit_pct": "Seuil de bruit (%)",
           "duree_stabilisation_s": "Durée de stabilisation (s)",
           "fenetre_hausse_s": "Fenêtre de hausse rapide (s)",

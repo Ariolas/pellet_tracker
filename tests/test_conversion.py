@@ -11,7 +11,9 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from detector import ConvertisseurNiveau, Decision, DetecteurRemplissage  # noqa: E402
+from detector import (  # noqa: E402
+    ApprentissageAdaptatif, ConvertisseurNiveau, Decision, DetecteurRemplissage,
+)
 
 T0 = 1_000_000.0
 STAB = 180.0
@@ -92,8 +94,64 @@ def test_scenario_telemetre_rien_quand_distance_stable():
     for t in range(5):
         assert d.traiter_mesure(c.en_pct(75.0), T0 + t * 3600) is None
     assert d.remplissage_en_cours is False
+    print(f"\n{len(tests) - echecs}/{len(tests)} tests OK")
+    sys.exit(1 if echecs else 0)
 
 
+# ------------------------------------------------------------------ deltas niveau
+def test_delta_niveau_vers_pct():
+    """Un delta saisi en niveau brut (ex. cm) devient un % interne."""
+    c = ConvertisseurNiveau(valeur_vide=120.0, valeur_pleine=20.0)  # étendue 100
+    assert c.delta_niveau_vers_pct(8.0) == 8.0
+    c2 = ConvertisseurNiveau(valeur_vide=110.0, valeur_pleine=20.0)  # étendue 90
+    assert c2.delta_niveau_vers_pct(9.0) == 10.0
+    # le signe du delta importe peu : c'est une magnitude
+    assert c.delta_niveau_vers_pct(-8.0) == 8.0
+
+
+def test_delta_pct_vers_niveau():
+    """Un delta interne (%) est restitué en niveau brut pour l'affichage."""
+    c = ConvertisseurNiveau(valeur_vide=120.0, valeur_pleine=20.0)  # étendue 100
+    assert c.delta_pct_vers_niveau(8.0) == 8.0
+    c2 = ConvertisseurNiveau(valeur_vide=110.0, valeur_pleine=20.0)  # étendue 90
+    assert c2.delta_pct_vers_niveau(10.0) == 9.0
+    assert c2.delta_pct_vers_niveau(-10.0) == 9.0
+
+
+def test_delta_aller_retour():
+    """Niveau → % → niveau : l'aller-retour est stable (ex. capteur poids)."""
+    c = ConvertisseurNiveau(valeur_vide=0.0, valeur_pleine=30.0)  # peson, étendue -30
+    for delta in (5.0, 7.5, 12.0):
+        pct = c.delta_niveau_vers_pct(delta)
+        assert c.delta_pct_vers_niveau(pct) == delta
+
+
+def test_delta_bornes_egales_garde_fou():
+    c = ConvertisseurNiveau(valeur_vide=50.0, valeur_pleine=50.0)
+    assert c.delta_niveau_vers_pct(8.0) == 8.0
+    assert c.delta_pct_vers_niveau(8.0) == 8.0
+
+
+def test_scenario_telemetre_avec_delta_niveau():
+    """Bout en bout : delta saisi en cm, détection toujours correcte."""
+    c = ConvertisseurNiveau(valeur_vide=120.0, valeur_pleine=20.0)
+    # Un sac fait gagner 10 cm de niveau (delta saisi en cm)
+    apprentissage = ApprentissageAdaptatif(
+        delta_un_sac=c.delta_niveau_vers_pct(10.0), alpha=1.0
+    )
+    d = DetecteurRemplissage(
+        delta_un_sac=c.delta_niveau_vers_pct(10.0), seuil_bruit_pct=1.5,
+        duree_stabilisation_s=STAB, fenetre_hausse_s=120.0,
+        apprentissage=apprentissage,
+    )
+    d.traiter_mesure(c.en_pct(80.0), T0)    # 40 %
+    d.traiter_mesure(c.en_pct(70.0), T0 + 10)  # +10 cm = +10 % → 1 sac
+    resultat = d.traiter_mesure(c.en_pct(70.0), T0 + 10 + STAB + 1)
+    assert resultat.decision == Decision.AUTO
+    assert resultat.delta == 10.0
+    # l'apprentissage appris reste cohérent, restitué en cm il vaut 10
+    assert apprentissage.delta_un_sac == 10.0
+    assert c.delta_pct_vers_niveau(apprentissage.delta_un_sac) == 10.0
 if __name__ == "__main__":
     tests = [(n, f) for n, f in list(globals().items()) if n.startswith("test_") and callable(f)]
     echecs = 0
@@ -104,5 +162,6 @@ if __name__ == "__main__":
         except AssertionError as exc:
             echecs += 1
             print(f"FAIL {nom}: {exc}")
-    print(f"\n{len(tests) - echecs}/{len(tests)} tests OK")
+    print("")
+    print(f"{len(tests) - echecs}/{len(tests)} tests OK")
     sys.exit(1 if echecs else 0)

@@ -65,9 +65,6 @@ class PelletCoordinator:
         alpha = entry.options.get(CONF_ALPHA_EMA, DEFAULT_ALPHA_EMA)
         fenetre_std = entry.options.get(CONF_FENETRE_STD, DEFAULT_FENETRE_STD)
         tolerance_min = entry.options.get(CONF_TOLERANCE_MIN, DEFAULT_TOLERANCE_MIN)
-        delta_initial = entry.options.get(
-            CONF_DELTA_UN_SAC, entry.data.get(CONF_DELTA_UN_SAC, DEFAULT_DELTA_UN_SAC)
-        )
         # Le capteur peut être un télémètre : la mesure brute est convertie
         # en % de remplissage avant d'alimenter la machine à états.
         valeur_vide = entry.options.get(
@@ -77,16 +74,22 @@ class PelletCoordinator:
             CONF_VALEUR_PLEINE, entry.data.get(CONF_VALEUR_PLEINE, DEFAULT_VALEUR_PLEINE)
         )
         self.convertisseur = ConvertisseurNiveau(valeur_vide, valeur_pleine)
+        # Le delta d'un sac est saisi en NIVEAU BRUT (mesurable directement :
+        # niveau avant/après remplissage) et converti en % interne.
+        delta_initial = entry.options.get(
+            CONF_DELTA_UN_SAC, entry.data.get(CONF_DELTA_UN_SAC, DEFAULT_DELTA_UN_SAC)
+        )
+        delta_initial_pct = self.convertisseur.delta_niveau_vers_pct(delta_initial)
 
         self.data: dict[str, Any] = {}
         self.apprentissage = ApprentissageAdaptatif(
-            delta_un_sac=delta_initial,
+            delta_un_sac=delta_initial_pct,
             alpha=alpha,
             fenetre_std=fenetre_std,
             tolerance_min=tolerance_min,
         )
         self.detecteur = DetecteurRemplissage(
-            delta_un_sac=delta_initial,
+            delta_un_sac=delta_initial_pct,
             seuil_bruit_pct=seuil_bruit,
             duree_stabilisation_s=duree_stab,
             fenetre_hausse_s=fenetre_hausse,
@@ -101,6 +104,8 @@ class PelletCoordinator:
         """Charge la persistance, restaure l'apprentissage, écoute le capteur."""
         self.data = await self.storage.async_charger()
         if self.data.get("delta_un_sac") is not None:
+            # La valeur persistée est en % interne (apprentissage), pas en
+            # niveau brut : elle se réapplique telle quelle.
             self.apprentissage.delta_un_sac = self.data["delta_un_sac"]
         self.apprentissage.deltas_confirmes = self.data.get("deltas_confirmes", [])
 
@@ -194,7 +199,7 @@ class PelletCoordinator:
         # JSON, une Enum y lèverait TypeError) → on stocke .value
         ev_dict = {
             "timestamp": evenement.timestamp,
-            "delta": evenement.delta,
+            "delta": evenement.delta,  # % interne
             "decision": evenement.decision.value,
             "niveau_avant": evenement.niveau_avant,
             "niveau_apres": evenement.niveau_apres,
@@ -294,24 +299,28 @@ class PelletCoordinator:
             )
 
     async def _sauver_et_notifier(self, evenement: EvenementRemplissage, auto: bool) -> None:
+        # Le delta interne (%) est affiché en niveau brut, comme saisi
+        # à la configuration : plus parlant pour l'utilisateur.
+        delta_niveau = self.convertisseur.delta_pct_vers_niveau(evenement.delta)
         await self.storage.async_sauver(self.data)
         await self._notifier(
             "Poêle à granulés",
             (
-                f"Remplissage détecté : +{evenement.delta:.1f}% "
+                f"Remplissage détecté : +{delta_niveau:.1f} de niveau "
                 f"(≈ 1 sac) compté automatiquement."
                 if auto else
-                f"Remplissage confirmé : +{evenement.delta:.1f}%."
+                f"Remplissage confirmé : +{delta_niveau:.1f} de niveau."
             ),
         )
 
     async def _notifier_partiel(self, evenement: EvenementRemplissage, action_id: str) -> None:
         """Notification avec boutons « Oui, 1 sac » / « Non »."""
+        delta_niveau = self.convertisseur.delta_pct_vers_niveau(evenement.delta)
         await self.storage.async_sauver(self.data)
         await self._notifier(
             "Poêle à granulés : remplissage partiel",
             (
-                f"Hausse de {evenement.delta:.1f}% détectée "
+                f"Hausse de {delta_niveau:.1f} de niveau détectée "
                 f"(≈ {evenement.delta / max(self.apprentissage.delta_un_sac, 0.1):.1f} sac). "
                 "Compter 1 sac ?"
             ),
@@ -385,11 +394,16 @@ class PelletCoordinator:
 
     @property
     def delta_initial(self) -> float:
-        """Base de départ saisie à la configuration (avant apprentissage)."""
+        """Delta d'un sac de base, en NIVEAU BRUT (saisie configuration)."""
         return self.entry.options.get(
             CONF_DELTA_UN_SAC,
             self.entry.data.get(CONF_DELTA_UN_SAC, DEFAULT_DELTA_UN_SAC),
         )
+
+    @property
+    def delta_initial_pct(self) -> float:
+        """Delta d'un sac de base, converti en % interne."""
+        return self.convertisseur.delta_niveau_vers_pct(self.delta_initial)
 
     # -------------------------------------------------- services
     async def async_add_bag(self, nombre: int = 1) -> None:
@@ -410,8 +424,16 @@ class PelletCoordinator:
         self._notify_entities()
 
     async def async_reset_learning(self, delta_un_sac: Optional[float] = None) -> None:
-        """Service pellet_tracker.reset_learning : repart de la calibration."""
-        self.apprentissage.reinitialiser(delta_un_sac or self.delta_initial)
+        """Service pellet_tracker.reset_learning : repart de la calibration.
+
+        Le paramètre optionnel est en NIVEAU BRUT (comme à la configuration)
+        et converti en % interne.
+        """
+        delta_pct = (
+            self.convertisseur.delta_niveau_vers_pct(delta_un_sac)
+            if delta_un_sac else self.delta_initial_pct
+        )
+        self.apprentissage.reinitialiser(delta_pct)
         self._persister_delta_appris()
         self.data["deltas_confirmes"] = []
         await self.storage.async_sauver(self.data)
