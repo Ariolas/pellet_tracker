@@ -21,7 +21,11 @@
         "data": {
           "seuil_bruit_pct": "Seuil de bruit (%)",
           "duree_stabilisation_s": "Durée de stabilisation (s)",
-          "fenetre_hausse_s": "Fenêtre de hausse rapide (s)"
+          "fenetre_hausse_s": "Fenêtre de hausse rapide (s)",
+          "notify_service": "Service de notification mobile",
+          "alpha_ema": "Coefficient de lissage EMA (0,05 à 1)",
+          "fenetre_std": "Nb de deltas pour l'écart-type glissant",
+          "tolerance_min_pct": "Plancher de tolérance de détection (%)"
         }
       }
     }

@@ -20,7 +20,11 @@
         "data": {
           "seuil_bruit_pct": "Noise threshold (%)",
           "duree_stabilisation_s": "Stabilization duration (s)",
-          "fenetre_hausse_s": "Fast rise window (s)"
+          "fenetre_hausse_s": "Fast rise window (s)",
+          "notify_service": "Mobile notification service",
+          "alpha_ema": "EMA smoothing coefficient (0.05 to 1)",
+          "fenetre_std": "Rolling std-dev window (deltas)",
+          "tolerance_min_pct": "Minimum detection tolerance (%)"
         }
       }
     }

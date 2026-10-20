@@ -16,13 +16,17 @@ from homeassistant.helpers.selector import (
 from .const import (
     DOMAIN, CONF_SENSOR_NIVEAU, CONF_NOTIFY, CONF_SEUIL_BRUIT,
     CONF_DUREE_STABILISATION, CONF_FENETRE_HAUSSE, CONF_SACS_INIT,
+    CONF_ALPHA_EMA, CONF_FENETRE_STD, CONF_TOLERANCE_MIN,
+    DEFAULT_NOTIFY, DEFAULT_SEUIL_BRUIT, DEFAULT_DUREE_STABILISATION,
+    DEFAULT_FENETRE_HAUSSE, DEFAULT_ALPHA_EMA, DEFAULT_FENETRE_STD,
+    DEFAULT_TOLERANCE_MIN,
 )
 
 STEP_USER_SCHEMA = vol.Schema({
     vol.Required(CONF_SENSOR_NIVEAU): EntitySelector(
         EntitySelectorConfig(domain="sensor")
     ),
-    vol.Required(CONF_NOTIFY, default="notify.mobile_app_mon_tel"): str,
+    vol.Required(CONF_NOTIFY, default=DEFAULT_NOTIFY): str,
     vol.Required("delta_un_sac", default=8.0): vol.All(
         vol.Coerce(float), vol.Range(min=0.1, max=100)
     ),
@@ -46,9 +50,9 @@ class PelletTrackerConfigFlow(ConfigFlow, domain=DOMAIN):
                 title="Suivi granulés",
                 data=user_input,
                 options={
-                    CONF_SEUIL_BRUIT: 1.5,
-                    CONF_DUREE_STABILISATION: 180,
-                    CONF_FENETRE_HAUSSE: 120,
+                    CONF_SEUIL_BRUIT: DEFAULT_SEUIL_BRUIT,
+                    CONF_DUREE_STABILISATION: DEFAULT_DUREE_STABILISATION,
+                    CONF_FENETRE_HAUSSE: DEFAULT_FENETRE_HAUSSE,
                 },
             )
         return self.async_show_form(step_id="user", data_schema=STEP_USER_SCHEMA)
@@ -70,17 +74,30 @@ class PelletTrackerOptionsFlow(OptionsFlow):
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         if user_input is not None:
             return self.async_create_entry(title="", data=user_input)
+        options = self._config_entry.options
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema({
                 vol.Required(CONF_SEUIL_BRUIT,
-                    default=self._config_entry.options.get(CONF_SEUIL_BRUIT, 1.5)
+                    default=options.get(CONF_SEUIL_BRUIT, DEFAULT_SEUIL_BRUIT)
                 ): vol.All(vol.Coerce(float), vol.Range(min=0.2, max=10)),
                 vol.Required(CONF_DUREE_STABILISATION,
-                    default=self._config_entry.options.get(CONF_DUREE_STABILISATION, 180)
+                    default=options.get(CONF_DUREE_STABILISATION, DEFAULT_DUREE_STABILISATION)
                 ): vol.All(vol.Coerce(int), vol.Range(min=30, max=3600)),
                 vol.Required(CONF_FENETRE_HAUSSE,
-                    default=self._config_entry.options.get(CONF_FENETRE_HAUSSE, 120)
+                    default=options.get(CONF_FENETRE_HAUSSE, DEFAULT_FENETRE_HAUSSE)
                 ): vol.All(vol.Coerce(int), vol.Range(min=10, max=3600)),
+                vol.Optional(CONF_NOTIFY,
+                    default=options.get(CONF_NOTIFY, self._config_entry.data.get(CONF_NOTIFY))
+                ): str,
+                vol.Required(CONF_ALPHA_EMA,
+                    default=options.get(CONF_ALPHA_EMA, DEFAULT_ALPHA_EMA)
+                ): vol.All(vol.Coerce(float), vol.Range(min=0.05, max=1.0)),
+                vol.Required(CONF_FENETRE_STD,
+                    default=options.get(CONF_FENETRE_STD, DEFAULT_FENETRE_STD)
+                ): vol.All(vol.Coerce(int), vol.Range(min=2, max=50)),
+                vol.Required(CONF_TOLERANCE_MIN,
+                    default=options.get(CONF_TOLERANCE_MIN, DEFAULT_TOLERANCE_MIN)
+                ): vol.All(vol.Coerce(float), vol.Range(min=0.1, max=10)),
             }),
         )
