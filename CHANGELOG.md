@@ -4,6 +4,37 @@ Suivi des évolutions de l'intégration. Chaque entrée contient la synthèse
 des changements effectués. Format inspiré de Keep a Changelog (version +
 date), antichronologique.
 
+## [0.5.0] — 2026-10-20
+
+### Fonctionnalité : « Delta d'un sac » modifiable dans les options
+
+- **`config_flow.py`** — Le champ « Delta d'un sac » (base de départ :
+  % gagné par sac de 15 kg, affiné ensuite par l'apprentissage EMA)
+  existait uniquement dans l'assistant initial. Il est maintenant
+  présent dans les options (modifiable sans réinstallation), en tête de
+  liste. Validation identique (0,1 à 100).
+- **`const.py`** — Clé `CONF_DELTA_UN_SAC` : la chaîne `"delta_un_sac"`
+  n'est plus dupliquée en dur dans `config_flow.py` et `coordinator.py`.
+- **`coordinator.py`** — Nouvelle propriété `delta_initial` (lecture
+  options → data → défaut) ; le coordinateur et le service
+  `reset_learning` s'y raccordent : la RAZ de l'apprentissage repart de
+  la base actuelle, y compris si elle a été modifiée dans les options.
+- **`sensor.py`** — L'entité « Delta d'un sac (appris) » passe en
+  catégorie `DIAGNOSTIC` : lecture seule assumée dans l'interface
+  (icône sous « Diagnostic », pas de personnalisation de la valeur).
+  Son attribut `delta_initial` reflète la base effective (options
+  incluses).
+- **`translations/`** — Libellé fr/en du champ dans les options.
+
+### Notes de version
+
+- Sémantique inchangée : la base saisie ne remplace jamais la valeur
+  apprise — elle sert de point de départ tant que l'apprentissage n'a
+  pas produit de valeur confirmée (storage), et de référence pour le
+  service `reset_learning`.
+- Compilation et 22 tests existants verts ; logique machine à états non
+  concernée.
+
 ## [0.4.0] — 2026-10-20
 
 ### Fonctionnalité : entité « Delta d'un sac (appris) »

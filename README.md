@@ -26,7 +26,7 @@ L'assistant demande :
 | Valeur cuve VIDE | mesure brute du capteur cuve vide | 0 |
 | Valeur cuve PLEINE | mesure brute du capteur cuve pleine | 100 |
 
-Options (Configurer → Pellet Tracker) : seuil de bruit, durée de
+Options (Configurer → Pellet Tracker) : delta d'un sac (base de départ, affinée par l'apprentissage), seuil de bruit, durée de
 stabilisation, fenêtre de hausse rapide, notification, valeurs cuve
 vide/pleine, coefficient EMA, fenêtre d'écart-type, tolérance minimale.
 
@@ -58,7 +58,7 @@ les défauts (0 / 100) laissent la valeur inchangée.
 
 ## Entités créées (par appareil « Suivi granulés »)
 
-- `sensor` Niveau de remplissage (%), Sacs consommés, Sacs restants estimés, Delta d'un sac appris (attributs : tolérance, deltas confirmés, calibration initiale)
+- `sensor` Niveau de remplissage (%), Sacs consommés, Sacs restants estimés, Delta d'un sac appris (entité diagnostique en lecture seule ; attributs : tolérance, deltas confirmés, calibration initiale)
 - `binary_sensor` Remplissage en cours
 - `event` Dernier remplissage (delta, décision, niveaux)
 
