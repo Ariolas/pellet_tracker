@@ -28,6 +28,7 @@ async def async_setup_entry(hass, entry: PelletConfigEntry, async_add_entities) 
         PelletNiveauSensor(coordinator, entry),
         PelletSacsConsommesSensor(coordinator, entry),
         PelletSacsRestantsSensor(coordinator, entry),
+        PelletDeltaUnSacSensor(coordinator, entry),
     ])
 
 
@@ -106,3 +107,33 @@ class PelletSacsRestantsSensor(_PelletSensor):
     def _calcul(self) -> float | None:
         restants = self.coordinator.sacs_restants
         return round(restants, 2) if restants is not None else None
+
+
+class PelletDeltaUnSacSensor(_PelletSensor):
+    """Delta % appris pour un sac : suivi de la calibration en direct.
+
+    Permet de surveiller la dérive de l'apprentissage EMA (et de détecter
+    une calibration polluée par de mauvaises confirmations) directement
+    depuis l'interface, sans ouvrir le .storage.
+    """
+    _attr_name = "Delta d'un sac (appris)"
+    _attr_native_unit_of_measurement = PERCENTAGE
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_icon = "mdi:tune"
+
+    @property
+    def _cle_unique(self) -> str:
+        return "delta_un_sac"
+
+    def _calcul(self) -> float | None:
+        return round(self.coordinator.apprentissage.delta_un_sac, 3)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Diagnostic de l'apprentissage : tolérance, deltas, calibration d'origine."""
+        apprentissage = self.coordinator.apprentissage
+        return {
+            "tolerance_pct": apprentissage.tolerance(),
+            "deltas_confirmes": len(apprentissage.deltas_confirmes),
+            "delta_initial": self.coordinator.entry.data.get("delta_un_sac"),
+        }

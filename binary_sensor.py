@@ -19,7 +19,7 @@ class PelletRemplissageEnCours(BinarySensorEntity):
     """ON tant que la machine à états détecte une hausse en cours."""
 
     _attr_name = "Remplissage en cours"
-    _attr_device_class = BinarySensorDeviceClass.OCCUPANCY  # neutre
+    _attr_device_class = BinarySensorDeviceClass.UPDATE  # mise à jour de la cuve en cours
     _attr_should_poll = False
 
     def __init__(self, coordinator: PelletCoordinator, entry: PelletConfigEntry) -> None:
