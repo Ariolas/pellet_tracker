@@ -1,11 +1,13 @@
 {
   "domain": "pellet_tracker",
   "name": "Pellet Tracker",
-  "codeowners": ["@prive"],
+  "codeowners": ["@Ariolas"],
   "config_flow": true,
   "dependencies": [],
+  "documentation": "https://github.com/Ariolas/pellet_tracker",
   "integration_type": "device",
   "iot_class": "calculated",
+  "issue_tracker": "https://github.com/Ariolas/pellet_tracker/issues",
   "requirements": [],
-  "version": "0.9.1"
-}
+  "version": "0.9.2"
+}

@@ -4,6 +4,27 @@ Suivi des évolutions de l'intégration. Chaque entrée contient la synthèse
 des changements effectués. Format inspiré de Keep a Changelog (version +
 date), antichronologique.
 
+## [0.9.2] — 2026-10-20
+
+### Publication : dépôt GitHub
+
+- **`manifest.json`** — Clés HACS requises renseignées avec les vraies
+  URLs : `documentation` → https://github.com/Ariolas/pellet_tracker,
+  `issue_tracker` → https://github.com/Ariolas/pellet_tracker/issues.
+  `codeowners` passe de `@prive` (placeholder) à `@Ariolas`.
+- **`README.md`** — Section d'installation HACS : URL concrète du dépôt.
+- Historique git purgé avant publication : `AGENTS.md` et `TODO.md`
+  (gestion interne) sont absents de tous les commits et du dépôt local
+  (filter-branch + gc) ; le `.gitignore` les exclut des évolutions
+  futures.
+
+### Notes de version
+
+- Aucune logique touchée : 27/27 tests verts.
+- Reste optionnel (TODO) : `brand/` avec `icon.png` et validation
+  `hacs/action` pour une éventuelle soumission au catalogue HACS par
+  défaut — inutile pour une utilisation en dépôt personnalisé.
+
 ## [0.9.1] — 2026-10-20
 
 ### Documentation accessible depuis Home Assistant

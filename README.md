@@ -23,8 +23,8 @@ spécifique de votre installation.
 
 ### Via HACS
 
-Si ce dossier est publié dans un dépôt Git (GitHub, …), l'ajouter comme
-dépôt personnalisé de type intégration dans HACS (la structure
+Publié sur GitHub : https://github.com/Ariolas/pellet_tracker — l'ajouter comme
+dépôt personnalisé de type intégration dans HACS avec cette URL (la structure
 `hacs.json` avec `content_in_root` est déjà en place), puis installer et
 redémarrer. La présente documentation est celle affichée par HACS.
 
