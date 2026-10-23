@@ -50,9 +50,13 @@ les défauts (0 / 100) laissent la valeur inchangée.
 
 - Une hausse rapide du % (> seuil de bruit, sur ≤ fenêtre de hausse) suivie
   d'une stabilisation (silence de la durée configurée) est un remplissage.
-- Delta ≈ 1 sac (tolérance adaptative) → **AUTO** : compté, apprentissage.
-- Delta partiel → notification mobile avec boutons « Oui, 1 sac » / « Non ».
-- Les baisses du niveau (hors remplissage) alimentent le % consommé cumulé.
+- **Sacs consommés = total compté par remplissages constatés.** La baisse
+  du niveau n'est qu'un indicatif, elle n'incrémente jamais le compteur.
+- Delta ≈ 1 sac (confiance haute, tolérance adaptative) → **AUTO** : sac
+  compté et appris immédiatement + notification « Acquitter » / « Correction
+  (-1 sac) » pour valider ou retirer le comptage.
+- Delta ≠ 1 sac ou doute → notification « Sac complet » (compte ET
+  apprend) / « Sac partiel » (rien) / « Fin de sac » (compte sans apprentissage).
 - Compteurs, apprentissage et historique (200 événements max) sont
   persistés dans `.storage` et survivent aux redémarrages.
 

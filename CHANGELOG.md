@@ -4,6 +4,55 @@ Suivi des évolutions de l'intégration. Chaque entrée contient la synthèse
 des changements effectués. Format inspiré de Keep a Changelog (version +
 date), antichronologique.
 
+## [0.9.0] — 2026-10-20
+
+### Changement de modèle : sacs consommés = sacs COMPTÉS, plus estimés
+
+- **Sémantique** — « Sacs consommés » n'est plus calculé par la baisse de
+  niveau (estimation) : il est incrémenté uniquement quand un remplissage
+  est constaté. La baisse de niveau reste suivie à titre indicatif
+  (`niveau_consome_pct` persisté) mais n'incrémente jamais le compteur.
+- **`coordinator.py`** — `sacs_consommes` = auto + confirmés + manuels.
+- **`sensor.py`** — `state_class` de « Sacs consommés » passe de
+  `TOTAL_INCREASING` à `TOTAL` : une correction peut faire baisser le
+  total.
+
+### Notifications à boutons remaniées
+
+- **AUTO (delta ≈ 1 sac, confiance haute = fenêtre de tolérance)** :
+  le sac est compté et appris immédiatement, notification affirmant le
+  comptage avec deux boutons :
+  - **Acquitter** : comptage validé, rien à faire ;
+  - **Correction (-1 sac)** : retire le sac compté. Note : l'apprentissage
+    EMA, déjà intégré, n'est pas réversible — il est conservé.
+- **PARTIEL (delta ≠ 1 sac ou doute)** : rien n'est compté d'office,
+  notification avec trois boutons :
+  - **Sac complet** : compte le sac ET apprend sur ce delta ;
+  - **Sac partiel** : ne compte rien, n'apprend rien ;
+  - **Fin de sac** : compte le sac SANS apprentissage (le delta ne
+    représente pas un sac entier : fin de sac entamé).
+- **`const.py`** — Nouvelles actions `pellet_acquitter`,
+  `pellet_correction`, `pellet_sac_complet`, `pellet_sac_partiel`,
+  `pellet_fin_de_sac` (remplacent `pellet_confirm_1sac` /
+  `pellet_annule`).
+- **Traçabilité** — La réponse utilisateur est enregistrée sur
+  l'événement (`reponse` : acquitte / correction / sac_complet /
+  sac_partiel / fin_de_sac) en plus de `confirme`.
+- Les notifications en attente (`attente_confirmation`) mémorisent leur
+  type (`auto` / `partiel`) et le nombre de sacs déjà comptés ; une
+  réponse périmée ou d'un ancien format est ignorée proprement.
+
+### Notes de version
+
+- **Migration** : le compteur « Sacs consommés » repartira de zéro si
+  l'ancien comptage était basé sur la baisse de niveau — utiliser
+  `sacs_initiaux` ou le service `add_bag` pour recaler, puis
+  `reset_counter` au besoin.
+- La détection et l'apprentissage ne changent pas : 27/27 tests verts.
+- À valider dans l'instance : boutons des notifications (les trois
+  réponses d'une même notification mobile sont exclusives — le premier
+  appui l'emporte).
+
 ## [0.8.2] — 2026-10-20
 
 ### Correction bloquante (remontée par l'instance HA)
