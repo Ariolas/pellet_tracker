@@ -4,6 +4,37 @@ Suivi des évolutions de l'intégration. Chaque entrée contient la synthèse
 des changements effectués. Format inspiré de Keep a Changelog (version +
 date), antichronologique.
 
+## [0.9.1] — 2026-10-20
+
+### Documentation accessible depuis Home Assistant
+
+- **Fusion dans `README.md`** — Home Assistant ne rend pas les fichiers
+  Markdown d'un composant custom dans son interface ; la seule surface
+  de lecture intégrée est la page du dépôt rendue par **HACS**, qui
+  affiche exclusivement le `README.md`. La référence complète des champs
+  de configuration (créée en `Documentation.md`) migre donc dans le
+  README : installation (manuelle et HACS), assistant initial, options,
+  services, protocoles de mesure terrain, fonctionnement et entités.
+  `Documentation.md` est supprimé (source unique, l'historique git le
+  conserve). Le README est désormais **le** document de référence
+  utilisateur.
+- **`hacs.json`** — Créé avec `content_in_root: true` (les fichiers de
+  l'intégration sont à la racine du dépôt) et le nom « Pellet Tracker » :
+  le dossier est prêt à être publié tel quel comme dépôt personnalisé
+  HACS, auquel cas cette documentation s'affiche directement dans HA.
+- **`AGENTS.md`** — Structure mise à jour (`hacs.json`, rôle du README)
+  et règle ajoutée : toute documentation utilisateur doit être intégrée
+  au README, pas dans des fichiers séparés.
+- **`TODO.md`** — L'entrée « URLs du manifest » précise les exigences
+  HACS de publication (`documentation`, `issue_tracker`, `brand/`).
+
+### Notes de version
+
+- Aucune logique touchée : 27/27 tests verts, aucune entité ni flow
+  modifiés.
+- Rappel : pour HACS, le dépôt doit être hébergé (GitHub/Gitea) — l'étape
+  locale est prête, l'hébergement reste à créer (voir TODO).
+
 ## [0.9.0] — 2026-10-20
 
 ### Changement de modèle : sacs consommés = sacs COMPTÉS, plus estimés
