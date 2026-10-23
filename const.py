@@ -24,8 +24,11 @@ SERVICE_RESET_LEARNING = "reset_learning"
 
 # --- Notifications mobiles ---
 EVENT_MOBILE_APP_ACTION = "mobile_app_notification_action"
-ACTION_CONFIRM = "pellet_confirm_1sac"
-ACTION_CANCEL = "pellet_annule"
+ACTION_ACQUITTER = "pellet_acquitter"        # réponse « compté OK » à un comptage automatique
+ACTION_CORRECTION = "pellet_correction"      # réponse « retirer le sac compté »
+ACTION_SAC_COMPLET = "pellet_sac_complet"    # réponse « un sac entier » (+apprentissage)
+ACTION_SAC_PARTIEL = "pellet_sac_partiel"    # réponse « pas un sac » (rien)
+ACTION_FIN_DE_SAC = "pellet_fin_de_sac"      # réponse « fin de sac » (compté, sans apprentissage)
 
 # --- Valeurs par défaut (à ajuster au premier lancement) ---
 DEFAULT_DELTA_UN_SAC = 8.0        # niveau brut gagné par sac (niveau après - niveau avant)

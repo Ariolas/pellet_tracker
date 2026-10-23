@@ -101,10 +101,10 @@ class PelletNiveauSensor(_PelletSensor):
 
 
 class PelletSacsConsommesSensor(_PelletSensor):
-    """Nombre de sacs consommés (compteur cumulatif, persistant)."""
+    """Sacs consommés : total COMPTÉ (remplissages constatés), persistant."""
     _attr_name = "Sacs consommés"
     _attr_native_unit_of_measurement = "sacs"
-    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+    _attr_state_class = SensorStateClass.TOTAL  # une correction peut faire baisser le total
 
     def __init__(self, coordinator: PelletCoordinator, entry: PelletConfigEntry) -> None:
         super().__init__(coordinator, entry)

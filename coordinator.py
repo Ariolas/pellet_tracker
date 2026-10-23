@@ -23,7 +23,9 @@ from .const import (
     DEFAULT_FENETRE_HAUSSE, DEFAULT_ALPHA_EMA, DEFAULT_FENETRE_STD,
     DEFAULT_TOLERANCE_MIN, DEFAULT_DELTA_UN_SAC,
     DEFAULT_VALEUR_VIDE, DEFAULT_VALEUR_PLEINE,
-    EVENT_MOBILE_APP_ACTION, ACTION_CONFIRM, ACTION_CANCEL,
+    EVENT_MOBILE_APP_ACTION,
+    ACTION_ACQUITTER, ACTION_CORRECTION,
+    ACTION_SAC_COMPLET, ACTION_SAC_PARTIEL, ACTION_FIN_DE_SAC,
 )
 from .detector import (
     ApprentissageAdaptatif, ConvertisseurNiveau, Decision,
@@ -32,6 +34,10 @@ from .detector import (
 from .storage import PelletStorage
 
 _LOGGER = logging.getLogger(__name__)
+
+# Actions de notification attendues, avec leur effet sur le comptage.
+_ACTIONS = (ACTION_ACQUITTER, ACTION_CORRECTION,
+            ACTION_SAC_COMPLET, ACTION_SAC_PARTIEL, ACTION_FIN_DE_SAC)
 
 
 def _cibles_notify(valeur: Any) -> list[str]:
@@ -48,7 +54,13 @@ def _cibles_notify(valeur: Any) -> list[str]:
 
 
 class PelletCoordinator:
-    """Centralise toute la logique de suivi pour une config entry."""
+    """Centralise toute la logique de suivi pour une config entry.
+
+    Modèle de comptage : un sac consommé est compté quand son
+    REMPLISSAGE est constaté (détecté avec confiance → comptage auto,
+    ou confirmé via les boutons de notification). La baisse du niveau
+    n'est qu'une estimation, elle n'incrémente jamais le compteur.
+    """
 
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
         self.hass = hass
@@ -134,8 +146,8 @@ class PelletCoordinator:
         self._listeners.clear()
         # Les entités sont déjà déchargées à ce stade : on lâche leurs callbacks
         self._update_callbacks.clear()
-    # -------------------------------------------------- entités (rAF pattern)
 
+    # -------------------------------------------------- entités (rAF pattern)
     @callback
     def on_update(self, cb: Any) -> Any:
         """Enregistre un callback d'actualisation d'entité.
@@ -189,7 +201,8 @@ class PelletCoordinator:
             ancien_niveau = niveau
         variation = niveau - ancien_niveau
 
-        # --- Suivi de la consommation (baisse de niveau hors remplissage) ---
+        # --- Suivi indicatif de la consommation (ne compte PAS les sacs :
+        # seul un remplissage constaté incrémente le compteur) ---
         if not self.detecteur.remplissage_en_cours and variation < 0:
             self.data["niveau_consome_pct"] = self.data.get("niveau_consome_pct", 0.0) - variation
             self.hass.async_create_task(self.storage.async_sauver(self.data))
@@ -202,7 +215,7 @@ class PelletCoordinator:
         self._notify_entities()
 
     def _traiter_resultat(self, resultat: ResultatRemplissage, maintenant: float) -> None:
-        """Historise un remplissage confirmé et applique la décision."""
+        """Historise un remplissage confirmé, compte et notifie selon la décision."""
         evenement = EvenementRemplissage(
             niveau_avant=resultat.niveau_avant,
             niveau_apres=resultat.niveau_apres,
@@ -222,27 +235,42 @@ class PelletCoordinator:
         }
 
         if evenement.decision == Decision.AUTO:
-            # delta ≈ 1 sac → comptage automatique + apprentissage
+            # Hausse ≈ 1 sac avec confiance (fenêtre de tolérance) :
+            # comptage immédiat + apprentissage, notification affirmant
+            # le comptage avec boutons Acquitter / Correction.
             self._compter_sac(source="auto")
             self.apprentissage.confirmer(evenement.delta)
             self._persister_delta_appris()
             ev_dict["confirme"] = True
             self.data["evenements"].append(ev_dict)
-            self.hass.async_create_task(self._sauver_et_notifier(evenement, auto=True))
-        elif evenement.decision == Decision.PARTIEL:
-            # delta partiel → notification avec boutons Oui / Non
-            action_id = f"pellet_{secrets.token_hex(4)}"
-            self.data["attente_confirmation"] = {
-                "action_id": action_id,
+            attente = {
+                "action_id": f"pellet_{secrets.token_hex(4)}",
                 "delta": evenement.delta,
                 "timestamp": maintenant,
-                # Index de l'événement concerné dans l'historique : la
-                # réponse ne doit marquer que cet événement, même si
-                # d'autres sont ajoutés entre-temps.
-                "evenement_index": len(self.data["evenements"]),
+                "evenement_index": len(self.data["evenements"]) - 1,
+                "type": "auto",
+                "compte": 1,  # sacs déjà comptés par la décision AUTO
             }
+            self.data["attente_confirmation"] = attente
+            self.hass.async_create_task(
+                self._notifier_remplissage(evenement, attente["action_id"], auto=True)
+            )
+        elif evenement.decision == Decision.PARTIEL:
+            # Hausse ≠ 1 sac ou doute : rien n'est compté, la notification
+            # propose Sac complet / Sac partiel / Fin de sac.
             self.data["evenements"].append(ev_dict)
-            self.hass.async_create_task(self._notifier_partiel(evenement, action_id))
+            attente = {
+                "action_id": f"pellet_{secrets.token_hex(4)}",
+                "delta": evenement.delta,
+                "timestamp": maintenant,
+                "evenement_index": len(self.data["evenements"]) - 1,
+                "type": "partiel",
+                "compte": 0,  # rien compté tant que l'utilisateur n'a pas répondu
+            }
+            self.data["attente_confirmation"] = attente
+            self.hass.async_create_task(
+                self._notifier_remplissage(evenement, attente["action_id"], auto=False)
+            )
         else:
             _LOGGER.info("Remplissage ignoré (delta %.2f%% ≈ bruit)", evenement.delta)
 
@@ -313,39 +341,41 @@ class PelletCoordinator:
                 blocking=True,
             )
 
-    async def _sauver_et_notifier(self, evenement: EvenementRemplissage, auto: bool) -> None:
+    async def _notifier_remplissage(self, evenement: EvenementRemplissage,
+                                    action_id: str, auto: bool) -> None:
+        """Notification de remplissage avec boutons de réponse.
+
+        - AUTO (confiance haute, déjà compté) : Acquitter / Correction.
+        - PARTIEL (rien compté) : Sac complet / Sac partiel / Fin de sac.
+        """
         # Le delta interne (%) est affiché en niveau brut, comme saisi
         # à la configuration : plus parlant pour l'utilisateur.
         delta_niveau = self.convertisseur.delta_pct_vers_niveau(evenement.delta)
+        if auto:
+            message = (
+                f"Remplissage détecté : +{delta_niveau:.1f} de niveau "
+                f"(≈ 1 sac) compté automatiquement."
+            )
+            actions = [
+                {"action": f"{ACTION_ACQUITTER}:{action_id}", "title": "Acquitter"},
+                {"action": f"{ACTION_CORRECTION}:{action_id}", "title": "Correction (-1 sac)"},
+            ]
+        else:
+            ratio = evenement.delta / max(self.apprentissage.delta_un_sac, 0.1)
+            message = (
+                f"Hausse de {delta_niveau:.1f} de niveau détectée (≈ {ratio:.1f} sac). "
+                "Compter un sac ?"
+            )
+            actions = [
+                {"action": f"{ACTION_SAC_COMPLET}:{action_id}", "title": "Sac complet"},
+                {"action": f"{ACTION_SAC_PARTIEL}:{action_id}", "title": "Sac partiel"},
+                {"action": f"{ACTION_FIN_DE_SAC}:{action_id}", "title": "Fin de sac"},
+            ]
         await self.storage.async_sauver(self.data)
         await self._notifier(
             "Poêle à granulés",
-            (
-                f"Remplissage détecté : +{delta_niveau:.1f} de niveau "
-                f"(≈ 1 sac) compté automatiquement."
-                if auto else
-                f"Remplissage confirmé : +{delta_niveau:.1f} de niveau."
-            ),
-        )
-
-    async def _notifier_partiel(self, evenement: EvenementRemplissage, action_id: str) -> None:
-        """Notification avec boutons « Oui, 1 sac » / « Non »."""
-        delta_niveau = self.convertisseur.delta_pct_vers_niveau(evenement.delta)
-        await self.storage.async_sauver(self.data)
-        await self._notifier(
-            "Poêle à granulés : remplissage partiel",
-            (
-                f"Hausse de {delta_niveau:.1f} de niveau détectée "
-                f"(≈ {evenement.delta / max(self.apprentissage.delta_un_sac, 0.1):.1f} sac). "
-                "Compter 1 sac ?"
-            ),
-            data={
-                "tag": action_id,
-                "actions": [
-                    {"action": f"{ACTION_CONFIRM}:{action_id}", "title": "Oui, 1 sac"},
-                    {"action": f"{ACTION_CANCEL}:{action_id}", "title": "Non"},
-                ],
-            },
+            message,
+            data={"tag": action_id, "actions": actions},
         )
 
     async def async_test_notification(self) -> None:
@@ -360,38 +390,86 @@ class PelletCoordinator:
 
     @callback
     def on_notification_action(self, event: Event) -> None:
-        """Gère la réponse aux boutons (event mobile_app_notification_action)."""
+        """Gère les réponses aux boutons des notifications.
+
+        AUTO (compté d'office) :
+          - Acquitter  → comptage validé, rien à faire ;
+          - Correction → retire le sac compté (l'apprentissage EMA,
+            déjà intégré, n'est pas réversible).
+        PARTIEL (rien compté d'office) :
+          - Sac complet → compte le sac ET apprend sur ce delta ;
+          - Sac partiel → ne compte rien, n'apprend rien ;
+          - Fin de sac  → compte le sac SANS apprentissage (le delta
+            ne représente pas un sac entier : fin de sac entamé).
+        """
         action: str = event.data.get("action", "")
-        if not action.startswith((ACTION_CONFIRM, ACTION_CANCEL)):
+        if not action.startswith(_ACTIONS):
             return
-        _, _, action_id = action.partition(":")
+        action_name, _, action_id = action.partition(":")
         attente = self.data.get("attente_confirmation")
-        if not attente or attente["action_id"] != action_id:
+        if not attente or attente.get("action_id") != action_id:
             return  # réponse périmée ou déjà traitée
+
+        reponse = None
+        if attente.get("type") == "auto":
+            if action_name == ACTION_ACQUITTER:
+                reponse = "acquitte"  # comptage validé
+            elif action_name == ACTION_CORRECTION:
+                reponse = "correction"
+                compte = attente.get("compte", 1)
+                self.data["sacs_ajoutes"] = max(0, self.data.get("sacs_ajoutes", 0) - compte)
+                _LOGGER.info("Correction utilisateur : %s sac(s) retiré(s) du comptage auto",
+                             compte)
+        elif attente.get("type") == "partiel":
+            delta = attente["delta"]
+            if action_name == ACTION_SAC_COMPLET:
+                reponse = "sac_complet"
+                self._compter_sac(source="confirmation")
+                self.apprentissage.confirmer(delta)
+                self._persister_delta_appris()
+                _LOGGER.info("Remplissage partiel confirmé « sac complet » "
+                             "(+%.2f%%) → 1 sac compté, apprentissage", delta)
+            elif action_name == ACTION_FIN_DE_SAC:
+                reponse = "fin_de_sac"
+                self._compter_sac(source="confirmation")
+                _LOGGER.info("Remplissage « fin de sac » (+%.2f%%) → 1 sac compté, "
+                             "sans apprentissage", delta)
+            elif action_name == ACTION_SAC_PARTIEL:
+                reponse = "sac_partiel"
+                _LOGGER.info("Remplissage partiel : l'utilisateur n'a pas compté de sac")
+
+        if reponse is None:
+            # type inconnu (ancien format) ou action non pertinente : on purge
+            self.data["attente_confirmation"] = None
+            return
         self.data["attente_confirmation"] = None
+
+        # Trace la réponse de l'utilisateur sur l'événement correspondant
         index = attente.get("evenement_index")
         evenements = self.data.get("evenements", [])
         if index is not None and 0 <= index < len(evenements):
-            # Trace la réponse de l'utilisateur sur l'événement correspondant
-            evenements[index]["confirme"] = action.startswith(ACTION_CONFIRM)
-        if action.startswith(ACTION_CONFIRM):
-            delta = attente["delta"]
-            self._compter_sac(source="confirmation")
-            # Confirmation utilisateur → apprentissage sur ce delta partiel
-            self.apprentissage.confirmer(delta)
-            self._persister_delta_appris()
-            _LOGGER.info("Remplissage partiel confirmé (+%.2f%%) → 1 sac compté", delta)
-        else:
-            _LOGGER.info("Remplissage partiel refusé par l'utilisateur")
+            evenements[index]["reponse"] = reponse
+            evenements[index]["confirme"] = reponse in (
+                "acquitte", "sac_complet", "fin_de_sac",
+            )
+
         self.hass.async_create_task(self.storage.async_sauver(self.data))
         self._notify_entities()
 
     # -------------------------------------------------- données calculées
     @property
     def sacs_consommes(self) -> float:
-        """Sacs consommés estimés : % cumulé consommé / % par sac."""
-        delta = max(self.apprentissage.delta_un_sac, 0.1)
-        return round(self.data.get("niveau_consome_pct", 0.0) / delta, 2)
+        """Sacs consommés : total COMPTÉ, pas estimé.
+
+        Un sac est consommé quand son remplissage est constaté :
+        détection automatique à confiance haute, confirmation par
+        bouton de notification, ou service add_bag manuel.
+        """
+        return (
+            self.data.get("sacs_ajoutes", 0)
+            + self.data.get("sacs_confirmes", 0)
+            + self.data.get("sacs_manuels", 0)
+        )
 
     @property
     def sacs_restants(self) -> Optional[float]:
