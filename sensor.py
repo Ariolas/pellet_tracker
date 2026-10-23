@@ -29,7 +29,7 @@ async def async_setup_entry(hass, entry: PelletConfigEntry, async_add_entities) 
         PelletNiveauSensor(coordinator, entry),
         PelletSacsConsommesSensor(coordinator, entry),
         PelletSacsRestantsSensor(coordinator, entry),
-        # Bloc « Configuration » de l'appareil : calibration saisie
+        # Bloc « Diagnostic » de l appareil : calibration saisie (HA refuse CONFIG sur les sensors)
         PelletNiveauBasSensor(coordinator, entry),
         PelletNiveauHautSensor(coordinator, entry),
         PelletDeltaBaseSensor(coordinator, entry),
@@ -135,11 +135,15 @@ class PelletSacsRestantsSensor(_PelletSensor):
 
 
 class _PelletConfigSensor(_PelletSensor):
-    """Base des entités de configuration : valeur saisie, visible sur
-    l'appareil dans le bloc « Configuration » (lecture seule — la saisie
-    se fait dans les options de l'intégration)."""
+    """Base des valeurs de calibration saisies : visibles sur l'appareil dans le bloc « Diagnostic ».
 
-    _attr_entity_category = EntityCategory.CONFIG
+    Note : Home Assistant refuse les sensors en catégorie CONFIG
+    (« cannot be added as the entity category is set to config ») ;
+    la catégorie DIAGNOSTIC est celle des valeurs en lecture seule.
+    La saisie se fait dans les options de l'intégration.
+    """
+
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
 
 
 class PelletNiveauBasSensor(_PelletConfigSensor):

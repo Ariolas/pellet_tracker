@@ -4,6 +4,38 @@ Suivi des évolutions de l'intégration. Chaque entrée contient la synthèse
 des changements effectués. Format inspiré de Keep a Changelog (version +
 date), antichronologique.
 
+## [0.9.3] — 2026-10-20
+
+### Correction bloquante (remontée par l'instance HA, log décisif)
+
+- **`sensor.py`** — Les trois entités de calibration (« Niveau bas
+  (cuve vide) », « Niveau haut (cuve pleine) », « Delta d'un sac
+  (base) ») étaient en catégorie `EntityCategory.CONFIG` : Home
+  Assistant **refuse les entités sensor en catégorie CONFIG** au moment
+  de l'ajout (`Entity ... cannot be added as the entity category is
+  set to config`) — catégorie réservée aux entités qui modifient la
+  configuration (number, select, switch...). Les trois entités
+  échouaient donc à chaque démarrage et s'affichaient « indisponible »
+  (entrée de registre jamais fournie), sans toucher aux autres entités
+  (ajout indépendant, erreurs journalisées une à une).
+- **Correctif** : passage en catégorie `DIAGNOSTIC` — celle des valeurs
+  en lecture seule, déjà utilisée avec succès par « Delta d'un sac
+  (appris) ». Les trois entités apparaissent dans le bloc
+  **Diagnostic** de l'appareil, regroupées avec le delta appris.
+- La classe est renommée conceptuellement (valeurs de calibration) ;
+  docstring et commentaires documentent la règle HA pour éviter la
+  régression.
+- **`AGENTS.md`** — Règle ajoutée : les entités sensor ne peuvent pas
+  utiliser `EntityCategory.CONFIG` (rejet HA à l'ajout) ; en lecture
+  seule, la catégorie est `DIAGNOSTIC`.
+
+### Notes de version
+
+- 27/27 tests verts (logique de détection inchangée).
+- Déploiement : remplacer les fichiers et redémarrer complètement HA.
+  Les entrées de registre existantes sont mises à jour automatiquement
+  lors du ré-enregistrement (unique_id inchangés).
+
 ## [0.9.2] — 2026-10-20
 
 ### Publication : dépôt GitHub
