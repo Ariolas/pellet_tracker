@@ -4,6 +4,36 @@ Suivi des évolutions de l'intégration. Chaque entrée contient la synthèse
 des changements effectués. Format inspiré de Keep a Changelog (version +
 date), antichronologique.
 
+## [0.10.0] — 2026-10-20
+
+### Affichage entier des sacs
+
+- **`sensor.py`** — Le comptage se faisant par remplissages constatés
+  (0.9.0), les décimales n'ont plus de sens :
+  - « Sacs consommés » : valeur entière (sacs initiaux + total
+    compté, tous entiers par nature — plus d'arrondi `round(…, 2)`) ;
+  - « Sacs restants estimés » : valeur EXACTE conservée — c'est une estimation d'autonomie, les décimales restent informatives (arrondi non retenu).
+
+### Suppression du binary_sensor « Remplissage en cours »
+
+- **`binary_sensor.py` supprimé**, plateforme retirée de `PLATFORMS`
+  (`const.py`). Le remplissage réel dure quelques secondes, sous
+  l'intervalle des relevés : l'état n'indiquait jamais le remplissage
+  réel mais l'attente de confirmation. Le remplissage est un événement
+  ponctuel, déjà couvert par l'entité `event` « Dernier remplissage ».
+- **La machine à états interne est inchangée** (`detector.py`,
+  `remplissage_en_cours`) : elle sert à la détection et au suivi de
+  consommation, pas à l'affichage. Aucun test n'est impacté (27/27).
+- **Ménage requis dans HA** : l'entité orpheline restera dans le
+  registre (« restauration impossible ») — à supprimer manuellement
+  (page de l'entité → Supprimer), ainsi que toute carte Lovelace
+  qui la référençait.
+
+### Notes de version
+
+- Déploiement : remplacer les fichiers et redémarrer complètement HA.
+- Les entrées TODO correspondantes sont traitées et retirées du suivi.
+
 ## [0.9.3] — 2026-10-20
 
 ### Correction bloquante (remontée par l'instance HA, log décisif)

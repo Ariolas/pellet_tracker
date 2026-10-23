@@ -139,11 +139,10 @@ L'apprentissage affine ensuite cette base à chaque remplissage confirmé
 
 ## Entités créées (par appareil « Suivi granulés »)
 
-- `sensor` Niveau de remplissage (%), Sacs consommés, Sacs restants estimés, Delta d'un sac appris (niveau appris, en lecture seule ; attributs : tolérance, deltas confirmés, base)
+- `sensor` Niveau de remplissage (%), Sacs consommés (entier), Sacs restants estimés (valeur exacte), Delta d un sac appris (niveau appris, en lecture seule ; attributs : tolérance, deltas confirmés, base)
 - `sensor` Bloc Diagnostic de l appareil (calibration, lecture seule) : Niveau bas (cuve vide), Niveau haut (cuve pleine), Delta d un sac (base) - regroupées avec Delta d un sac (appris)
 - `button` Tester la notification (envoie un test aux appareils sélectionnés)
 - `button` Réinitialiser l'apprentissage (efface les deltas confirmés, repart du delta de base — à réserver à un changement de capteur ou une recalibration)
-- `binary_sensor` Remplissage en cours
 - `event` Dernier remplissage (delta, décision, niveaux, réponse utilisateur)
 
 ## Services

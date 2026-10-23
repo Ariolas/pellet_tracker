@@ -101,7 +101,7 @@ class PelletNiveauSensor(_PelletSensor):
 
 
 class PelletSacsConsommesSensor(_PelletSensor):
-    """Sacs consommés : total COMPTÉ (remplissages constatés), persistant."""
+    """Sacs consommés (entier) : total compté par remplissages constatés."""
     _attr_name = "Sacs consommés"
     _attr_native_unit_of_measurement = "sacs"
     _attr_state_class = SensorStateClass.TOTAL  # une correction peut faire baisser le total
@@ -114,13 +114,14 @@ class PelletSacsConsommesSensor(_PelletSensor):
     def _cle_unique(self) -> str:
         return "sacs_consommes"
 
-    def _calcul(self) -> float | None:
-        # Consommation estimée + sacs initiaux déclarés au lancement
-        return round(self._sacs_init + self.coordinator.sacs_consommes, 2)
+    def _calcul(self) -> int | None:
+        # Sacs initiaux + total compté : des entiers, depuis que le
+        # comptage se fait par remplissages constatés.
+        return self._sacs_init + int(self.coordinator.sacs_consommes)
 
 
 class PelletSacsRestantsSensor(_PelletSensor):
-    """Autonomie estimée en nombre de sacs."""
+    """Autonomie estimée en nombre de sacs (valeur exacte : c'est une estimation)."""
     _attr_name = "Sacs restants estimés"
     _attr_native_unit_of_measurement = "sacs"
     _attr_state_class = SensorStateClass.MEASUREMENT
@@ -130,6 +131,8 @@ class PelletSacsRestantsSensor(_PelletSensor):
         return "sacs_restants"
 
     def _calcul(self) -> float | None:
+        # Valeur exacte conservée : c'est une estimation d'autonomie, les
+        # décimales restent informatives (arrondi entier non retenu).
         restants = self.coordinator.sacs_restants
         return round(restants, 2) if restants is not None else None
 

@@ -1,7 +1,7 @@
 """Constantes de l'intégration pellet_tracker."""
 # Domaine de l'intégration
 DOMAIN = "pellet_tracker"
-PLATFORMS = ["sensor", "binary_sensor", "event", "button"]
+PLATFORMS = ["sensor", "event", "button"]
 
 # --- Clés de configuration (config entry) ---
 CONF_SENSOR_NIVEAU = "sensor_niveau"        # entity_id du capteur de niveau (%)
