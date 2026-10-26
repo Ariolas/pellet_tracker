@@ -33,8 +33,9 @@ async def async_setup_entry(hass, entry: PelletConfigEntry, async_add_entities) 
         PelletNiveauBasSensor(coordinator, entry),
         PelletNiveauHautSensor(coordinator, entry),
         PelletDeltaBaseSensor(coordinator, entry),
-        # Bloc « Diagnostic » : valeur apprise
+        # Bloc « Diagnostic » : valeurs apprises / confirmées
         PelletDeltaUnSacSensor(coordinator, entry),
+        PelletDeltaConfirmeSensor(coordinator, entry),
     ])
 
 
@@ -221,4 +222,41 @@ class PelletDeltaUnSacSensor(_PelletSensor):
             ),
             "deltas_confirmes": len(apprentissage.deltas_confirmes),
             "delta_base": self.coordinator.delta_initial,
+        }
+
+
+class PelletDeltaConfirmeSensor(_PelletSensor):
+    """Valeur de hausse du dernier remplissage CONFIRMÉ (diagnostic).
+
+    La hausse détectée est inscrite UNIQUEMENT à la confirmation d'un
+    événement qui a fait apprendre l'intégration : Acquitter (comptage
+    automatique confirmé) ou Sac complet. Jamais sur Correction, Fin de
+    sac (compté sans apprentissage), Sac partiel ou silence. Permet de
+    comparer directement la valeur observée au delta d'un sac appris
+    (ex. 3,8 constatés contre 3,7 appris).
+    """
+    _attr_name = "Dernier remplissage confirmé"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_icon = "mdi:check-circle"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    @property
+    def _cle_unique(self) -> str:
+        return "dernier_delta_confirme"
+
+    def _calcul(self) -> float | None:
+        confirme = self.coordinator.dernier_delta_confirme
+        if not confirme:
+            return None  # aucune confirmation d'apprentissage encore
+        # Valeur interne (%) restituée en niveau brut, comme le delta d'un sac
+        return self.coordinator.convertisseur.delta_pct_vers_niveau(confirme["delta"])
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        confirme = self.coordinator.dernier_delta_confirme or {}
+        return {
+            "date": confirme.get("timestamp"),        # date de confirmation
+            "rempli_le": confirme.get("rempli_le"),   # date du remplissage détecté
+            "reponse": confirme.get("reponse"),       # acquitte | sac_complet
+            "delta_pct": confirme.get("delta"),       # valeur interne (%)
         }

@@ -325,7 +325,24 @@ class PelletCoordinator:
             self._notify_entities()
 
     # -------------------------------------------------- actions
+    def _confirmer_delta(self, delta: float, reponse: str, rempli_le: float) -> None:
+        """Mémorise le dernier delta confirmé (événement d'apprentissage).
+
+        Nourrit le diagnostic « Dernier remplissage confirmé » : la hausse
+        détectée est inscrite UNIQUEMENT à la confirmation d'un événement
+        qui a fait apprendre l'intégration — Acquitter (AUTO confirmé) ou
+        Sac complet. Jamais sur Correction, Fin de sac (compté sans
+        apprentissage), Sac partiel ou silence.
+        """
+        self.data["dernier_delta_confirme"] = {
+            "delta": delta,  # % interne
+            "reponse": reponse,
+            "rempli_le": rempli_le,
+            "timestamp": time.time(),  # date de confirmation
+        }
+
     def _compter_sac(self, source: str = "manuel", nombre: int = 1) -> None:
+
         """Incrémente le compteur de sacs (auto, confirmation ou service)."""
         if source == "auto":
             self.data["sacs_ajoutes"] = self.data.get("sacs_ajoutes", 0) + nombre
@@ -433,6 +450,7 @@ class PelletCoordinator:
                 self.data["precedent_remplissage_valide"] = None
                 if isinstance(self.data.get("dernier_remplissage_valide"), dict):
                     self.data["dernier_remplissage_valide"]["reponse"] = "acquitte"
+                self._confirmer_delta(attente["delta"], "acquitte", attente["timestamp"])
             elif action_name == ACTION_CORRECTION:
                 reponse = "correction"
                 compte = attente.get("compte", 1)
@@ -453,6 +471,7 @@ class PelletCoordinator:
                 self._compter_sac(source="confirmation")
                 self.apprentissage.confirmer(delta)
                 self._persister_delta_appris()
+                self._confirmer_delta(delta, "sac_complet", attente["timestamp"])
                 _LOGGER.info("Remplissage partiel confirmé « sac complet » "
                              "(+%.2f%%) → 1 sac compté, apprentissage", delta)
             elif action_name == ACTION_FIN_DE_SAC:
@@ -551,6 +570,16 @@ class PelletCoordinator:
         les détections (un faux positif corrigé ne doit pas polluer la date).
         """
         return self.data.get("dernier_remplissage_valide")
+
+    @property
+    def dernier_delta_confirme(self) -> Optional[dict]:
+        """Dernier delta confirmé, ayant déclenché un apprentissage.
+
+        Diagnostique « Dernier remplissage confirmé » : uniquement sur
+        Acquitter (AUTO confirmé) ou Sac complet. None tant qu'aucune
+        confirmation d'apprentissage n'a eu lieu.
+        """
+        return self.data.get("dernier_delta_confirme")
 
     # -------------------------------------------------- services
     async def async_add_bag(self, nombre: int = 1) -> None:

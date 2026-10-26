@@ -4,6 +4,37 @@ Suivi des évolutions de l'intégration. Chaque entrée contient la synthèse
 des changements effectués. Format inspiré de Keep a Changelog (version +
 date), antichronologique.
 
+## [0.12.0] — 2026-10-20
+
+### Nouveau diagnostic : « Dernier remplissage confirmé »
+
+- **`sensor.py`** — Nouvelle entité dans le bloc Diagnostic : la valeur
+  de **hausse détectée** (niveau brut) du dernier remplissage confirmé,
+  directement comparable au « Delta d'un sac (appris) » (ex. 3,8
+  constatés contre 3,7 appris). Attributs : `date` (confirmation),
+  `rempli_le` (remplissage détecté), `reponse`, `delta_pct` (valeur
+  interne %).
+- **Règle d'inscription** (demande utilisateur) : uniquement à la
+  confirmation d'un événement **qui a déclenché un apprentissage** :
+  - **Acquitter** (comptage automatique confirmé) → inscrit ;
+  - **Sac complet** → inscrit ;
+  - **Correction** → jamais (la valeur reste la précédente) ;
+  - **Fin de sac** → jamais (sac compté mais sans apprentissage) ;
+  - **Sac partiel / silence** → jamais.
+- **`coordinator.py`** — Helper `_confirmer_delta` + propriété
+  `dernier_delta_confirme` ; appelé depuis les branches Acquitter et
+  Sac complet de `on_notification_action`.
+- **`storage.py`** — Défaut `dernier_delta_confirme: None` (persisté ;
+  l'entité affiche « inconnu » avant la première confirmation).
+
+### Notes de version
+
+- À noter : l'apprentissage EMA d'un AUTO s'applie dès la détection
+  (comportement inchangé) ; en cas de Correction, ce diagnostic ne
+  s'inscrit pas mais l'EMA a déjà consommé le delta — limitation
+  connue et documentée depuis la 0.9.0.
+- 27/27 tests verts (logique de détection inchangée).
+
 ## [0.11.0] — 2026-10-20
 
 ### « Dernier remplissage » : prévalidation à la détection, annulation sur correction
