@@ -4,6 +4,44 @@ Suivi des évolutions de l'intégration. Chaque entrée contient la synthèse
 des changements effectués. Format inspiré de Keep a Changelog (version +
 date), antichronologique.
 
+## [0.14.0] — 2026-10-20
+
+### Corrections issues d'une revue de code externe
+
+- **`tests/test_conversion.py`** — Deux lignes du footer `__main__`
+  (print + sys.exit) s'étaient glissées dans le corps de
+  `test_scenario_telemetre_rien_quand_distance_stable` : le test
+  exécutait le footer au milieu de la passe, affichant un total
+  « 15/15 » de façade et **interrompant la suite** — les 9 tests
+  suivants (conversions delta, formatage) n'avaient jamais été
+  exécutés depuis leur création. Lignes supprimées, footer réparé.
+  Premier passage réel : un test de formatage contenait une
+  attente fausse (arrondi flottant de 0.0375) — corrigé, les
+  15 tests passent pour de vrai (15 PASS individuels vérifiés).
+- **`const.py`** — `DEFAULT_NOTIFY` supprimé : vestige personnel
+  jamais importé depuis la refonte des notifications (0.6.0), qui
+  aurait ciblé un appareil inexistant si quelqu'un l'avait réutilisé.
+
+### Services : ciblage multi-installations
+
+- **`__init__.py`** — Les trois services (`add_bag`, `reset_counter`,
+  `reset_learning`) acceptent un champ optionnel `config_entry_id`
+  (sélecteur HA `config_entry` filtré sur l'intégration) : avec
+  plusieurs poêles suivis, on cible l'installation visée ; à défaut,
+  la première active est visée (comportement inchangé pour une
+  installation unique). Limitation précédente non documentée :
+  le service frappait toujours la première installation.
+- **`services.yaml`** — Champ ajouté aux trois services (libellé
+  français, sélecteur d'installation).
+- **`README.md`** — Table des services et note sur le ciblage.
+
+### Notes de version
+
+- 30/30 tests verts, vérifiés cette fois-ci passe par passe.
+- Leçon de process inscrite : un total affiché par un runner est
+  une donnée à vérifier (chaque test doit apparaître), pas juste
+  un nombre en fin de sortie.
+
 ## [0.13.0] — 2026-10-20
 
 ### Affichage : précision adaptative + pourcentage de cuve

@@ -39,7 +39,6 @@ DEFAULT_TOLERANCE_MIN = 1.5       # % — plancher de tolérance
 DEFAULT_ALPHA_EMA = 0.30          # lissage exponentiel
 DEFAULT_FENETRE_STD = 10          # nb de derniers deltas pour l'écart-type glissant
 DEFAULT_SACS_INIT = 0
-DEFAULT_NOTIFY = "notify.mobile_app_mon_tel"
 # Conversion capteur → % : ces défauts rendent la conversion identité
 # pour un capteur qui expose déjà un niveau 0–100 %.
 DEFAULT_VALEUR_VIDE = 0.0       # valeur capteur cuve VIDE (ex. distance max)

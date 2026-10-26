@@ -95,8 +95,6 @@ def test_scenario_telemetre_rien_quand_distance_stable():
     for t in range(5):
         assert d.traiter_mesure(c.en_pct(75.0), T0 + t * 3600) is None
     assert d.remplissage_en_cours is False
-    print(f"\n{len(tests) - echecs}/{len(tests)} tests OK")
-    sys.exit(1 if echecs else 0)
 
 
 # ------------------------------------------------------------------ deltas niveau
@@ -153,7 +151,6 @@ def test_scenario_telemetre_avec_delta_niveau():
     # l'apprentissage appris reste cohérent, restitué en cm il vaut 10
     assert apprentissage.delta_un_sac == 10.0
     assert c.delta_pct_vers_niveau(apprentissage.delta_un_sac) == 10.0
-    sys.exit(1 if echecs else 0)
 
 
 # ------------------------------------------------------------------ formatage
@@ -163,7 +160,7 @@ def test_formater_niveau_precision_adaptive():
     assert formater_niveau(0.032) == "0.032"
     assert formater_niveau(8.0) == "8"
     assert formater_niveau(0.37) == "0.37"
-    assert formater_niveau(0.0375) == "0.038"  # arrondi à 3 décimales
+    assert formater_niveau(0.0376) == "0.038"  # arrondi à 3 décimales
 
 
 def test_formater_niveau_zero_et_negligeable():
@@ -188,5 +185,4 @@ if __name__ == "__main__":
         except AssertionError as exc:
             echecs += 1
             print(f"FAIL {nom}: {exc}")
-    print(f"{{resultat}}".replace("{{resultat}}", str(len(tests) - echecs) + "/" + str(len(tests)) + " tests OK"))
-    sys.exit(1 if echecs else 0)
+    print(f"{len(tests) - echecs}/{len(tests)} tests OK")

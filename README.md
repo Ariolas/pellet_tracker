@@ -152,6 +152,7 @@ L'apprentissage affine ensuite cette base à chaque remplissage confirmé
 | `pellet_tracker.add_bag` | `nombre` (1 à 50, défaut 1) | Compte manuellement des sacs (remplissage non détecté). |
 | `pellet_tracker.reset_counter` | — | Remet à zéro les compteurs de sacs et l'indicatif « % consommé ». |
 | `pellet_tracker.reset_learning` | `delta_un_sac` optionnel (0,1 à 100, **niveau brut**) | Efface les deltas confirmés et repart du delta fourni — ou de la base des options si vide. |
+Tous les services acceptent un champ optionnel `config_entry_id` pour cibler une installation précise quand plusieurs poêles sont suivis (sélecteur d'installation dans l'interface HA) ; à défaut, la première installation active est visée.
 
 ## Tests
 

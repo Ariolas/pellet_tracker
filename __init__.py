@@ -8,6 +8,9 @@ import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall, callback
 from homeassistant.exceptions import ServiceValidationError
+from homeassistant.helpers.selector import (
+    ConfigEntrySelector, ConfigEntrySelectorConfig,
+)
 
 from .const import (
     DOMAIN, PLATFORMS, EVENT_MOBILE_APP_ACTION,
@@ -18,12 +21,25 @@ from .coordinator import PelletCoordinator
 _LOGGER = logging.getLogger(__name__)
 
 # --- Schémas des services ---
-SCHEMA_ADD_BAG = vol.Schema(
-    {vol.Optional("nombre", default=1): vol.All(vol.Coerce(int), vol.Range(min=1, max=50))}
-)
-SCHEMA_RESET_LEARNING = vol.Schema(
-    {vol.Optional("delta_un_sac"): vol.All(vol.Coerce(float), vol.Range(min=0.1, max=100))}
-)
+_CIBLE = "config_entry_id"  # champ optionnel : cible une installation précise
+
+SCHEMA_ADD_BAG = vol.Schema({
+    vol.Optional("nombre", default=1): vol.All(vol.Coerce(int), vol.Range(min=1, max=50)),
+    vol.Optional(_CIBLE): ConfigEntrySelector(
+        ConfigEntrySelectorConfig(integration=DOMAIN)
+    ),
+})
+SCHEMA_RESET_COUNTER = vol.Schema({
+    vol.Optional(_CIBLE): ConfigEntrySelector(
+        ConfigEntrySelectorConfig(integration=DOMAIN)
+    ),
+})
+SCHEMA_RESET_LEARNING = vol.Schema({
+    vol.Optional("delta_un_sac"): vol.All(vol.Coerce(float), vol.Range(min=0.1, max=100)),
+    vol.Optional(_CIBLE): ConfigEntrySelector(
+        ConfigEntrySelectorConfig(integration=DOMAIN)
+    ),
+})
 
 # Type retourné par async_setup_entry (API moderne)
 type PelletConfigEntry = ConfigEntry[PelletCoordinator]
@@ -82,9 +98,12 @@ def _register_services(hass: HomeAssistant) -> None:
     if hass.services.has_service(DOMAIN, SERVICE_ADD_BAG):
         return
 
-    def _coordinator() -> PelletCoordinator:
-        # Une seule entry attendue ; sinon on prend la première active
+    def _coordinator(entry_id: str | None = None) -> PelletCoordinator:
+        # Par défaut la première installation active est visée ; avec
+        # plusieurs poêles, config_entry_id désigne la bonne installation.
         entries = _loaded_entries(hass)
+        if entry_id:
+            entries = [e for e in entries if e.entry_id == entry_id]
         if not entries:
             raise ServiceValidationError(
                 "Aucune configuration pellet_tracker active pour le service"
@@ -92,16 +111,20 @@ def _register_services(hass: HomeAssistant) -> None:
         return entries[0].runtime_data
 
     async def _add_bag(call: ServiceCall) -> None:
-        await _coordinator().async_add_bag(call.data.get("nombre", 1))
+        await _coordinator(call.data.get("config_entry_id")).async_add_bag(
+            call.data.get("nombre", 1)
+        )
 
     async def _reset_counter(call: ServiceCall) -> None:
-        await _coordinator().async_reset_counter()
+        await _coordinator(call.data.get("config_entry_id")).async_reset_counter()
 
     async def _reset_learning(call: ServiceCall) -> None:
-        await _coordinator().async_reset_learning(call.data.get("delta_un_sac"))
+        await _coordinator(call.data.get("config_entry_id")).async_reset_learning(
+            call.data.get("delta_un_sac")
+        )
 
     hass.services.async_register(DOMAIN, SERVICE_ADD_BAG, _add_bag, SCHEMA_ADD_BAG)
-    hass.services.async_register(DOMAIN, SERVICE_RESET_COUNTER, _reset_counter)
+    hass.services.async_register(DOMAIN, SERVICE_RESET_COUNTER, _reset_counter, SCHEMA_RESET_COUNTER)
     hass.services.async_register(DOMAIN, SERVICE_RESET_LEARNING, _reset_learning, SCHEMA_RESET_LEARNING)
 
 
