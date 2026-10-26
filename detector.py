@@ -299,3 +299,16 @@ class ConvertisseurNiveau:
         if etendue == 0:
             return float(delta_pct)
         return round(abs(float(delta_pct)) / 100.0 * abs(etendue), 3)
+
+
+def formater_niveau(valeur: float) -> str:
+    """Formate une valeur de niveau pour l'affichage : jusqu'à 3
+    décimales significatives, zéros finaux retirés.
+
+    L'unité du capteur peut être petite (ex. trémie de 0,5 en unité
+    capteur) : une décimale unique y serait illisible (une hausse
+    légitimement au-dessus du seuil de bruit s'afficherait « 0.0 »).
+    Exemples : 3.7 → « 3.7 », 0.032 → « 0.032 », 8.0 → « 8 ».
+    """
+    texte = f"{float(valeur):.3f}".rstrip("0").rstrip(".")
+    return texte or "0"

@@ -155,7 +155,7 @@ class PelletTrackerOptionsFlow(OptionsFlow):
                 ): vol.All(vol.Coerce(float), vol.Range(min=0.1, max=100)),
                 vol.Required(CONF_SEUIL_BRUIT,
                     default=options.get(CONF_SEUIL_BRUIT, DEFAULT_SEUIL_BRUIT)
-                ): vol.All(vol.Coerce(float), vol.Range(min=0.2, max=10)),
+                ): vol.All(vol.Coerce(float), vol.Range(min=0.2, max=20)),
                 vol.Required(CONF_DUREE_STABILISATION,
                     default=options.get(CONF_DUREE_STABILISATION, DEFAULT_DUREE_STABILISATION)
                 ): vol.All(vol.Coerce(int), vol.Range(min=30, max=3600)),

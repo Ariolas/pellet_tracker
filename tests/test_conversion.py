@@ -12,7 +12,8 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from detector import (  # noqa: E402
-    ApprentissageAdaptatif, ConvertisseurNiveau, Decision, DetecteurRemplissage,
+    ApprentissageAdaptatif, ConvertisseurNiveau, Decision,
+    DetecteurRemplissage, formater_niveau,
 )
 
 T0 = 1_000_000.0
@@ -152,6 +153,31 @@ def test_scenario_telemetre_avec_delta_niveau():
     # l'apprentissage appris reste cohérent, restitué en cm il vaut 10
     assert apprentissage.delta_un_sac == 10.0
     assert c.delta_pct_vers_niveau(apprentissage.delta_un_sac) == 10.0
+    sys.exit(1 if echecs else 0)
+
+
+# ------------------------------------------------------------------ formatage
+def test_formater_niveau_precision_adaptive():
+    """Jusqu'à 3 décimales, zéros finaux retirés (petites unités capteur)."""
+    assert formater_niveau(3.7) == "3.7"
+    assert formater_niveau(0.032) == "0.032"
+    assert formater_niveau(8.0) == "8"
+    assert formater_niveau(0.37) == "0.37"
+    assert formater_niveau(0.0375) == "0.038"  # arrondi à 3 décimales
+
+
+def test_formater_niveau_zero_et_negligeable():
+    assert formater_niveau(0.0) == "0"
+    assert formater_niveau(0.0004) == "0"  # sous la précision d'affichage
+
+
+def test_formater_niveau_scenario_notification():
+    """Le cas qui a motivé la fonction : hausse de 6 % d'une cuve de 0,5."""
+    c = ConvertisseurNiveau(valeur_vide=0.5, valeur_pleine=0.0)
+    hausse_niveau = c.delta_pct_vers_niveau(6.0)  # 6 % de la cuve → 0.03
+    assert hausse_niveau == 0.03
+    texte = f"Hausse de {formater_niveau(hausse_niveau)} de niveau détectée"
+    assert "0.03" in texte  # lisible, pas « 0.0 »
 if __name__ == "__main__":
     tests = [(n, f) for n, f in list(globals().items()) if n.startswith("test_") and callable(f)]
     echecs = 0
@@ -162,6 +188,5 @@ if __name__ == "__main__":
         except AssertionError as exc:
             echecs += 1
             print(f"FAIL {nom}: {exc}")
-    print("")
-    print(f"{len(tests) - echecs}/{len(tests)} tests OK")
+    print(f"{{resultat}}".replace("{{resultat}}", str(len(tests) - echecs) + "/" + str(len(tests)) + " tests OK"))
     sys.exit(1 if echecs else 0)

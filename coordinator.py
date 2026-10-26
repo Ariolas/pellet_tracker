@@ -28,7 +28,7 @@ from .const import (
     ACTION_SAC_COMPLET, ACTION_SAC_PARTIEL, ACTION_FIN_DE_SAC,
 )
 from .detector import (
-    ApprentissageAdaptatif, ConvertisseurNiveau, Decision,
+    ApprentissageAdaptatif, ConvertisseurNiveau, Decision, formater_niveau,
     DetecteurRemplissage, Etat, EvenementRemplissage, ResultatRemplissage,
 )
 from .storage import PelletStorage
@@ -384,8 +384,8 @@ class PelletCoordinator:
         delta_niveau = self.convertisseur.delta_pct_vers_niveau(evenement.delta)
         if auto:
             message = (
-                f"Remplissage détecté : +{delta_niveau:.1f} de niveau "
-                f"(≈ 1 sac) compté automatiquement."
+                f"Remplissage détecté : +{formater_niveau(delta_niveau)} de niveau "
+                f"({evenement.delta:.1f} % de la cuve, ≈ 1 sac) compté automatiquement."
             )
             actions = [
                 {"action": f"{ACTION_ACQUITTER}:{action_id}", "title": "Acquitter"},
@@ -394,7 +394,8 @@ class PelletCoordinator:
         else:
             ratio = evenement.delta / max(self.apprentissage.delta_un_sac, 0.1)
             message = (
-                f"Hausse de {delta_niveau:.1f} de niveau détectée (≈ {ratio:.1f} sac). "
+                f"Hausse de {formater_niveau(delta_niveau)} de niveau détectée "
+                f"({evenement.delta:.1f} % de la cuve, ≈ {ratio:.1f} sac). "
                 "Compter un sac ?"
             )
             actions = [
@@ -621,7 +622,7 @@ class PelletCoordinator:
             "Poêle à granulés",
             (
                 "Apprentissage réinitialisé : le delta repart de la base "
-                f"({self.convertisseur.delta_pct_vers_niveau(self.apprentissage.delta_un_sac):.1f} "
+                f"({formater_niveau(self.convertisseur.delta_pct_vers_niveau(self.apprentissage.delta_un_sac))} "
                 "de niveau par sac). Les deltas confirmés sont effacés."
             ),
         )

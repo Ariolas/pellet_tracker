@@ -64,7 +64,7 @@ le bloc **Configuration** (lecture seule).
 
 | Champ | Contraintes | Défaut | Rôle |
 |---|---|---|---|
-| Seuil de bruit (%) | 0,2 à 10 | 1,5 | Variations en dessous de ce seuil (en % de la cuve) sont ignorées : fluctuation du capteur, tassement des granulés. Trop bas = fausses détections ; trop haut = petits remplissages ratés. |
+| Seuil de bruit (%) | 0,2 à 20 | 1,5 | Variations en dessous de ce seuil (en % de la cuve) sont ignorées : fluctuation du capteur, tassement des granulés. Trop bas = fausses détections ; trop haut = petits remplissages ratés. |
 | Durée de stabilisation (s) | 30 à 3600 | 180 | Silence requis (aucune nouvelle variation) après une hausse avant de confirmer le remplissage. Doit couvrir le temps que la surface des granulés se stabilise après versement. |
 | Fenêtre de hausse rapide (s) | 10 à 3600 | 120 | La hausse doit se produire en moins de ce délai pour être qualifiée de remplissage. Une hausse plus lente est considérée comme une dérive (tassement) et ignorée. |
 

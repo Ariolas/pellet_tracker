@@ -4,6 +4,39 @@ Suivi des évolutions de l'intégration. Chaque entrée contient la synthèse
 des changements effectués. Format inspiré de Keep a Changelog (version +
 date), antichronologique.
 
+## [0.13.0] — 2026-10-20
+
+### Affichage : précision adaptative + pourcentage de cuve
+
+- **Contexte remonté par l'utilisateur** — Notification « Hausse de 0.0
+  de niveau détectée » : avec une trémie d'étendue 0,5 (unité capteur)
+  et un seuil de bruit à 5 %, une hausse légitime de 5–10 % de la cuve
+  vaut 0,025–0,05 dans l'unité du capteur — invisible à l'arrondi à
+  une décimale (une décimale = 20 % de toute la cuve à cette échelle).
+  La détection était correcte ; seul l'affichage était trompeur.
+- **`detector.py`** — Fonction pure `formater_niveau` : jusqu'à 3
+  décimales significatives, zéros finaux retirés (0.032 → « 0.032 »,
+  3.7 → « 3.7 », 8.0 → « 8 »).
+- **`coordinator.py`** — Notifications AUTO et PARTIEL affichent le
+  delta en précision adaptative ET le pourcentage de cuve :
+  « Hausse de 0.03 de niveau détectée (6.0 % de la cuve, ≈ 0.1 sac).
+  Compter un sac ? » — le % de cuve est directement comparable au
+  seuil de bruit, indépendamment de l'unité du capteur. Notification
+  de réinitialisation d'apprentissage également en précision
+  adaptative.
+- **Tests** — 3 nouveaux tests de formatage (15/15 en conversion).
+
+### Seuil de bruit : borne haute étendue
+
+- **`config_flow.py`** — La borne supérieure du seuil de bruit passe
+  de 10 à **20 %** (options), pour les capteurs bruyants à grande
+  étendue. README mis à jour.
+
+### Notes de version
+
+- 30/30 tests verts (15 détecteur + 15 conversion) ; logique de
+  détection inchangée.
+
 ## [0.12.0] — 2026-10-20
 
 ### Nouveau diagnostic : « Dernier remplissage confirmé »
@@ -87,7 +120,7 @@ date), antichronologique.
   (0.9.0), les décimales n'ont plus de sens :
   - « Sacs consommés » : valeur entière (sacs initiaux + total
     compté, tous entiers par nature — plus d'arrondi `round(…, 2)`) ;
-  - « Sacs restants estimés » : valeur EXACTE conservée — c'est une estimation d'autonomie, les décimales restent informatives (arrondi non retenu).
+XX
 
 ### Suppression du binary_sensor « Remplissage en cours »
 
