@@ -4,6 +4,50 @@ Suivi des évolutions de l'intégration. Chaque entrée contient la synthèse
 des changements effectués. Format inspiré de Keep a Changelog (version +
 date), antichronologique.
 
+## [0.11.0] — 2026-10-20
+
+### « Dernier remplissage » : prévalidation à la détection, annulation sur correction
+
+- **Problème remonté par l'utilisateur** — L'entité event se validait
+  à chaque sac DÉTECTÉ, y compris les faux positifs : une hausse de
+  bruit corrigée via la notification laissait une fausse date de
+  « dernier remplissage ».
+- **Modèle à prévalidation (mise à jour optimiste avec compensation)** :
+  - **Détection AUTO (confiance haute)** : la date de détection est
+    inscrite immédiatement comme dernier remplissage, l'event se
+    déclenche ; la valeur précédente est sauvegardée. Le silence ne
+    déclenche aucune action — l'acceptation est l'état par défaut,
+    sans délai d'expiration ;
+  - **Acquitter** : la prévalidation devient définitive (date de
+    détection conservée, sauvegarde libérée) ;
+  - **Correction** : la date est restaurée vers le remplissage
+    précédent, l'entité revient en arrière SANS re-déclencher l'event
+    (comparaison par horodatage : une annulation n'émet pas de nouveau
+    remplissage vers les automations) ;
+  - **Sac complet / Fin de sac** (remplissages partiels) : validation
+    uniquement à la réponse, à la date de celle-ci ;
+  - **Sac partiel / notification sans réponse** : jamais pris en compte.
+- **`coordinator.py`** — Données persistées `dernier_remplissage_valide`
+  (dates de validation ET de remplissage, delta, décision, niveaux,
+  réponse) et `precedent_remplissage_valide` (backup pour l'annulation).
+- **`event.py`** — Déclenchement sur horodatage strictement plus
+  récent ; acquittements et annulations ne font que rafraîchir l'état.
+  Attribut `reponse` (`prevalide` tant que l'acquittement est en
+  attente). Restauration après redémarrage sans re-déclenchement.
+- **`storage.py`** — Défauts des deux nouvelles clés.
+
+### Notes de version
+
+- Survit aux redémarrages : une Correction reste possible indéfiniment
+  (tant qu'aucun remplissage plus récent n'a eu lieu).
+- Limite connue : la trace du déclenchement initial reste dans
+  l'historique HA (un event émis ne s'efface pas) ; seul l'état
+  courant est restauré.
+- L'historique complet des détections (y compris faux positifs
+  corrigés) reste consultable dans `.storage` (`evenements`, réponse
+  tracée).
+- 27/27 tests verts (logique de détection inchangée).
+
 ## [0.10.0] — 2026-10-20
 
 ### Affichage entier des sacs

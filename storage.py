@@ -38,6 +38,8 @@ class PelletStorage:
                 "deltas_confirmes": [],
                 "evenements": [],          # historique des remplissages
                 "attente_confirmation": None,  # notification en attente (delta, ts)
+                "dernier_remplissage_valide": None,  # dernier remplissage VALIDÉ / PRÉVALIDÉ
+                "precedent_remplissage_valide": None,  # backup pour annulation de prévalidation
             }
         return data
 

@@ -252,6 +252,20 @@ class PelletCoordinator:
                 "compte": 1,  # sacs déjà comptés par la décision AUTO
             }
             self.data["attente_confirmation"] = attente
+            # Prévalidation (confiance haute) : la date de détection est
+            # inscrite IMMÉDIATEMENT comme dernier remplissage ; une
+            # Correction via la notification la restaurera (rollback).
+            # Le silence ne fait rien : acceptation par défaut.
+            self.data["precedent_remplissage_valide"] = self.data.get("dernier_remplissage_valide")
+            self.data["dernier_remplissage_valide"] = {
+                "timestamp": maintenant,
+                "rempli_le": evenement.timestamp,
+                "delta": evenement.delta,
+                "decision": "auto",
+                "niveau_avant": evenement.niveau_avant,
+                "niveau_apres": evenement.niveau_apres,
+                "reponse": None,  # prévalidé : acquittement en attente
+            }
             self.hass.async_create_task(
                 self._notifier_remplissage(evenement, attente["action_id"], auto=True)
             )
@@ -413,13 +427,25 @@ class PelletCoordinator:
         reponse = None
         if attente.get("type") == "auto":
             if action_name == ACTION_ACQUITTER:
-                reponse = "acquitte"  # comptage validé
+                reponse = "acquitte"
+                # La prévalidation devient définitive : date de détection
+                # conservée (pas de nouvelle écriture), backup libéré.
+                self.data["precedent_remplissage_valide"] = None
+                if isinstance(self.data.get("dernier_remplissage_valide"), dict):
+                    self.data["dernier_remplissage_valide"]["reponse"] = "acquitte"
             elif action_name == ACTION_CORRECTION:
                 reponse = "correction"
                 compte = attente.get("compte", 1)
                 self.data["sacs_ajoutes"] = max(0, self.data.get("sacs_ajoutes", 0) - compte)
-                _LOGGER.info("Correction utilisateur : %s sac(s) retiré(s) du comptage auto",
-                             compte)
+                # Annulation de la prévalidation : retour au dernier
+                # remplissage précédent (l'entité event revient à la date
+                # antérieure sans re-déclencher d'event).
+                self.data["dernier_remplissage_valide"] = self.data.get("precedent_remplissage_valide")
+                self.data["precedent_remplissage_valide"] = None
+                _LOGGER.info(
+                    "Correction utilisateur : %s sac(s) retiré(s) du comptage auto, prévalidation annulée",
+                    compte,
+                )
         elif attente.get("type") == "partiel":
             delta = attente["delta"]
             if action_name == ACTION_SAC_COMPLET:
@@ -447,11 +473,29 @@ class PelletCoordinator:
         # Trace la réponse de l'utilisateur sur l'événement correspondant
         index = attente.get("evenement_index")
         evenements = self.data.get("evenements", [])
-        if index is not None and 0 <= index < len(evenements):
-            evenements[index]["reponse"] = reponse
-            evenements[index]["confirme"] = reponse in (
-                "acquitte", "sac_complet", "fin_de_sac",
-            )
+        ev = (
+            evenements[index]
+            if index is not None and 0 <= index < len(evenements)
+            else {}
+        )
+        if ev:
+            ev["reponse"] = reponse
+            ev["confirme"] = reponse in ("acquitte", "sac_complet", "fin_de_sac")
+
+        # Sac complet / Fin de sac : création de la validation à la date de
+        # la réponse (pas de prévalidation pour les partiels). Acquitter
+        # n'entre pas ici : la prévalidation AUTO est déjà en place.
+        if reponse in ("sac_complet", "fin_de_sac"):
+            self.data["dernier_remplissage_valide"] = {
+                "timestamp": time.time(),      # date de validation
+                "rempli_le": ev.get("timestamp"),  # date du remplissage détecté
+                "delta": attente.get("delta", ev.get("delta")),
+                "decision": ev.get("decision"),
+                "niveau_avant": ev.get("niveau_avant"),
+                "niveau_apres": ev.get("niveau_apres"),
+                "reponse": reponse,
+            }
+
 
         self.hass.async_create_task(self.storage.async_sauver(self.data))
         self._notify_entities()
@@ -497,6 +541,16 @@ class PelletCoordinator:
     def delta_initial_pct(self) -> float:
         """Delta d'un sac de base, converti en % interne."""
         return self.convertisseur.delta_niveau_vers_pct(self.delta_initial)
+
+    @property
+    def dernier_remplissage_valide(self) -> Optional[dict]:
+        """Dernier remplissage VALIDÉ par l'utilisateur (ou None).
+
+        Mis à jour uniquement sur Acquitter / Sac complet / Fin de sac :
+        l'entité event « Dernier remplissage » se déclenche dessus, pas sur
+        les détections (un faux positif corrigé ne doit pas polluer la date).
+        """
+        return self.data.get("dernier_remplissage_valide")
 
     # -------------------------------------------------- services
     async def async_add_bag(self, nombre: int = 1) -> None:

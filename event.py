@@ -1,7 +1,7 @@
-"""Event entity : dernier événement de remplissage (delta, décision)."""
+"""Event entity : dernier remplissage VALIDÉ par l'utilisateur."""
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Optional
 
 from homeassistant.components.event import EventEntity
 from homeassistant.helpers.device_registry import DeviceInfo
@@ -16,8 +16,14 @@ async def async_setup_entry(hass, entry: PelletConfigEntry, async_add_entities) 
 
 
 class PelletDernierRemplissage(EventEntity):
-    """Émet un event à chaque remplissage confirmé ; l'état conserve
-    la date et les attributs le détail (delta, décision, niveaux)."""
+    """Se déclenche uniquement quand un sac est VALIDÉ.
+
+    Réponses qui déclenchent : Acquitter (comptage auto confirmé),
+    Sac complet, Fin de sac. Une correction, un sac partiel ou une
+    notification sans réponse ne déclenchent jamais : l'état reflète
+    la date du dernier sac réellement utilisé, pas les détections
+    (un faux positif corrigé ne pollue pas la date).
+    """
 
     _attr_name = "Dernier remplissage"
     _attr_has_entity_name = True
@@ -33,12 +39,12 @@ class PelletDernierRemplissage(EventEntity):
         self._attr_event_type = None
         self._attr_event_attributes: dict[str, Any] | None = None
         self._dernier_ts: float | None = None  # anti-doublon : timestamp du dernier event émis
-        # Restauration du dernier événement persisté (sans le re-émettre)
-        dernier = coordinator.dernier_evenement
+        # Restauration du dernier remplissage validé (sans le re-émettre)
+        dernier = coordinator.dernier_remplissage_valide
         if dernier:
             self._dernier_ts = dernier.get("timestamp")
             self._attr_event_type = f"{DOMAIN}_remplissage"
-            self._attr_event_attributes = dernier
+            self._attr_event_attributes = self._attributs(dernier)
         self._unsub_update: Any = None
 
     async def async_added_to_hass(self) -> None:
@@ -57,24 +63,34 @@ class PelletDernierRemplissage(EventEntity):
             self._unsub_update()
             self._unsub_update = None
 
+    def _attributs(self, dernier: dict) -> dict[str, Any]:
+        """Attributs de l'événement, en niveau brut comme à la saisie."""
+        return {
+            "delta_pct": dernier.get("delta"),
+            "delta_niveau": self.coordinator.convertisseur.delta_pct_vers_niveau(
+                dernier.get("delta") or 0.0
+            ),
+            "decision": str(dernier.get("decision")),
+            "reponse": dernier.get("reponse") or "prevalide",  # None = prévalidé (acquittement en attente)
+            "niveau_avant": dernier.get("niveau_avant"),
+            "niveau_apres": dernier.get("niveau_apres"),
+            "rempli_le": dernier.get("rempli_le"),
+        }
+
     def _on_update(self) -> None:
-        dernier = self.coordinator.dernier_evenement
-        # Ne déclencher que pour un NOUVEL événement : sinon chaque mesure de
-        # consommation re-émettrait indéfiniment le même event
-        if not dernier or dernier.get("timestamp") == self._dernier_ts:
+        dernier = self.coordinator.dernier_remplissage_valide
+        if not dernier:
             return
-        self._dernier_ts = dernier["timestamp"]
-        self._trigger_event(
-            f"{DOMAIN}_remplissage",
-            {
-                "delta_pct": dernier["delta"],
-                "delta_niveau": self.coordinator.convertisseur.delta_pct_vers_niveau(
-                    dernier["delta"]
-                ),
-                "decision": str(dernier["decision"]),
-                "niveau_avant": dernier["niveau_avant"],
-                "niveau_apres": dernier["niveau_apres"],
-                "confirme": dernier.get("confirme"),
-            },
-        )
-        self.async_write_ha_state()
+        attrs = self._attributs(dernier)
+        if (dernier.get("timestamp") or 0) > (self._dernier_ts or 0):
+            # NOUVEAU remplissage : prévalidé à la détection AUTO, ou
+            # validé par Sac complet / Fin de sac → déclenchement de l'event.
+            self._trigger_event(f"{DOMAIN}_remplissage", attrs)
+        elif attrs != self._attr_event_attributes:
+            # Même remplissage (acquittement) ou ANNULATION de prévalidation
+            # (Correction : retour à la date précédente) : état mis à jour
+            # silencieusement, SANS re-déclencher l'event (les automations
+            # ne voient pas de faux remplissage).
+            self.async_write_ha_state()
+        self._dernier_ts = dernier.get("timestamp")
+        self._attr_event_attributes = attrs

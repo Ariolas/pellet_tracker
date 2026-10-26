@@ -143,7 +143,7 @@ L'apprentissage affine ensuite cette base à chaque remplissage confirmé
 - `sensor` Bloc Diagnostic de l appareil (calibration, lecture seule) : Niveau bas (cuve vide), Niveau haut (cuve pleine), Delta d un sac (base) - regroupées avec Delta d un sac (appris)
 - `button` Tester la notification (envoie un test aux appareils sélectionnés)
 - `button` Réinitialiser l'apprentissage (efface les deltas confirmés, repart du delta de base — à réserver à un changement de capteur ou une recalibration)
-- `event` Dernier remplissage (delta, décision, niveaux, réponse utilisateur)
+- `event` Dernier remplissage VALIDÉ — se déclenche uniquement sur Acquitter / Sac complet / Fin de sac (attributs : delta, décision, réponse, niveaux, dates de remplissage et de validation)
 
 ## Services
 
