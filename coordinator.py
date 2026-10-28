@@ -26,6 +26,8 @@ from .const import (
     EVENT_MOBILE_APP_ACTION,
     ACTION_ACQUITTER, ACTION_CORRECTION,
     ACTION_SAC_COMPLET, ACTION_SAC_PARTIEL, ACTION_FIN_DE_SAC,
+    ACTION_REMPLISSAGE, ACTION_FAUX_POSITIF, ACTION_SEUIL_OUI, ACTION_SEUIL_NON,
+    SEUIL_BRUIT_MAX,
 )
 from .detector import (
     ApprentissageAdaptatif, ConvertisseurNiveau, Decision, formater_niveau,
@@ -34,10 +36,9 @@ from .detector import (
 from .storage import PelletStorage
 
 _LOGGER = logging.getLogger(__name__)
-
-# Actions de notification attendues, avec leur effet sur le comptage.
 _ACTIONS = (ACTION_ACQUITTER, ACTION_CORRECTION,
-            ACTION_SAC_COMPLET, ACTION_SAC_PARTIEL, ACTION_FIN_DE_SAC)
+            ACTION_SAC_COMPLET, ACTION_SAC_PARTIEL, ACTION_FIN_DE_SAC,
+            ACTION_REMPLISSAGE, ACTION_FAUX_POSITIF, ACTION_SEUIL_OUI, ACTION_SEUIL_NON)
 
 
 def _cibles_notify(valeur: Any) -> list[str]:
@@ -267,7 +268,7 @@ class PelletCoordinator:
                 "reponse": None,  # prévalidé : acquittement en attente
             }
             self.hass.async_create_task(
-                self._notifier_remplissage(evenement, attente["action_id"], auto=True)
+                self._notifier_auto(evenement.delta, attente["action_id"])
             )
         elif evenement.decision == Decision.PARTIEL:
             # Hausse ≠ 1 sac ou doute : rien n'est compté, la notification
@@ -283,7 +284,7 @@ class PelletCoordinator:
             }
             self.data["attente_confirmation"] = attente
             self.hass.async_create_task(
-                self._notifier_remplissage(evenement, attente["action_id"], auto=False)
+                self._notifier_partiel(evenement.delta, attente["action_id"])
             )
         else:
             _LOGGER.info("Remplissage ignoré (delta %.2f%% ≈ bruit)", evenement.delta)
@@ -372,44 +373,105 @@ class PelletCoordinator:
                 blocking=True,
             )
 
-    async def _notifier_remplissage(self, evenement: EvenementRemplissage,
-                                    action_id: str, auto: bool) -> None:
-        """Notification de remplissage avec boutons de réponse.
-
-        - AUTO (confiance haute, déjà compté) : Acquitter / Correction.
-        - PARTIEL (rien compté) : Sac complet / Sac partiel / Fin de sac.
-        """
-        # Le delta interne (%) est affiché en niveau brut, comme saisi
-        # à la configuration : plus parlant pour l'utilisateur.
-        delta_niveau = self.convertisseur.delta_pct_vers_niveau(evenement.delta)
-        if auto:
-            message = (
-                f"Remplissage détecté : +{formater_niveau(delta_niveau)} de niveau "
-                f"({evenement.delta:.1f} % de la cuve, ≈ 1 sac) compté automatiquement."
-            )
-            actions = [
-                {"action": f"{ACTION_ACQUITTER}:{action_id}", "title": "Acquitter"},
-                {"action": f"{ACTION_CORRECTION}:{action_id}", "title": "Correction (-1 sac)"},
-            ]
-        else:
-            ratio = evenement.delta / max(self.apprentissage.delta_un_sac, 0.1)
-            message = (
-                f"Hausse de {formater_niveau(delta_niveau)} de niveau détectée "
-                f"({evenement.delta:.1f} % de la cuve, ≈ {ratio:.1f} sac). "
-                "Compter un sac ?"
-            )
-            actions = [
-                {"action": f"{ACTION_SAC_COMPLET}:{action_id}", "title": "Sac complet"},
-                {"action": f"{ACTION_SAC_PARTIEL}:{action_id}", "title": "Sac partiel"},
-                {"action": f"{ACTION_FIN_DE_SAC}:{action_id}", "title": "Fin de sac"},
-            ]
+    async def _notifier_auto(self, delta: float, action_id: str) -> None:
+        """Comptage automatique (confiance haute, déjà compté) :
+        Acquitter / Correction."""
+        delta_niveau = self.convertisseur.delta_pct_vers_niveau(delta)
+        message = (
+            f"Remplissage détecté : +{formater_niveau(delta_niveau)} de niveau "
+            f"({delta:.1f} % de la cuve, ≈ 1 sac) compté automatiquement."
+        )
+        actions = [
+            {"action": f"{ACTION_ACQUITTER}:{action_id}", "title": "Acquitter"},
+            {"action": f"{ACTION_CORRECTION}:{action_id}", "title": "Correction (-1 sac)"},
+        ]
         await self.storage.async_sauver(self.data)
+        await self._notifier("Poêle à granulés", message,
+                             data={"tag": action_id, "actions": actions})
+
+    async def _notifier_partiel(self, delta: float, action_id: str) -> None:
+        """Étape 1 (hausse partielle) : Remplissage ou faux positif ?"""
+        delta_niveau = self.convertisseur.delta_pct_vers_niveau(delta)
+        ratio = delta / max(self.apprentissage.delta_un_sac, 0.1)
+        message = (
+            f"Hausse de {formater_niveau(delta_niveau)} de niveau détectée "
+            f"({delta:.1f} % de la cuve, ≈ {ratio:.1f} sac). "
+            "Remplissage ou faux positif ?"
+        )
+        actions = [
+            {"action": f"{ACTION_REMPLISSAGE}:{action_id}", "title": "Remplissage"},
+            {"action": f"{ACTION_FAUX_POSITIF}:{action_id}", "title": "Faux positif"},
+        ]
+        await self.storage.async_sauver(self.data)
+        await self._notifier("Poêle à granulés : hausse détectée", message,
+                             data={"tag": action_id, "actions": actions})
+
+    async def _notifier_remplissage(self, delta: float, action_id: str) -> None:
+        """Étape 2 (remplissage confirmé) : Sac complet / Sac partiel /
+        Fin de sac."""
+        delta_niveau = self.convertisseur.delta_pct_vers_niveau(delta)
+        ratio = delta / max(self.apprentissage.delta_un_sac, 0.1)
+        message = (
+            f"Remplissage confirmé (hausse de {formater_niveau(delta_niveau)} de niveau, "
+            f"≈ {ratio:.1f} sac). Compter un sac ?"
+        )
+        actions = [
+            {"action": f"{ACTION_SAC_COMPLET}:{action_id}", "title": "Sac complet"},
+            {"action": f"{ACTION_SAC_PARTIEL}:{action_id}", "title": "Sac partiel"},
+            {"action": f"{ACTION_FIN_DE_SAC}:{action_id}", "title": "Fin de sac"},
+        ]
+        await self.storage.async_sauver(self.data)
+        await self._notifier("Poêle à granulés : remplissage", message,
+                             data={"tag": action_id, "actions": actions})
+
+
+    async def _notifier_faux_positif(self, action_id: str, delta: float) -> None:
+        """Relance de notification après un faux positif signalé.
+
+        « Faux positif détecté : augmenter le seuil de bruit ? » avec
+        boutons Oui (+1 %) / Non (fermeture silencieuse).
+        """
+        seuil = self.entry.options.get(CONF_SEUIL_BRUIT, DEFAULT_SEUIL_BRUIT)
+        delta_niveau = self.convertisseur.delta_pct_vers_niveau(delta)
         await self._notifier(
-            "Poêle à granulés",
-            message,
-            data={"tag": action_id, "actions": actions},
+            "Poêle à granulés : faux positif",
+            (
+                f"Faux positif détecté (hausse de {formater_niveau(delta_niveau)} de niveau, "
+                f"{delta:.1f} % de la cuve). Augmenter le seuil de bruit ({seuil:.1f} %) ?"
+            ),
+            data={
+                "tag": action_id,
+                "actions": [
+                    {"action": f"{ACTION_SEUIL_OUI}:{action_id}", "title": "Oui (+1 %)"},
+                    {"action": f"{ACTION_SEUIL_NON}:{action_id}", "title": "Non"},
+                ],
+            },
         )
 
+    async def _augmenter_seuil_bruit(self, seuil_actuel: Optional[float]) -> None:
+        """Faux positif confirmé : seuil de bruit + 1 %.
+
+        Les options de l'entry sont mises à jour (persistantes et
+        visibles dans l'interface) : le listener recharge l'entry avec
+        le nouveau seuil. Effet immédiat en mémoire avant même le
+        rechargement. Plafonné à SEUIL_BRUIT_MAX.
+        """
+        seuil = float(seuil_actuel) if seuil_actuel else DEFAULT_SEUIL_BRUIT
+        nouveau = min(round(seuil + 1.0, 1), SEUIL_BRUIT_MAX)
+        if nouveau <= seuil:
+            await self._notifier(
+                "Poêle à granulés",
+                f"Seuil de bruit déjà au maximum ({SEUIL_BRUIT_MAX:.0f} %).",
+            )
+            return
+        self.detecteur.seuil_bruit = nouveau  # effet immédiat en mémoire
+        options = dict(self.entry.options)
+        options[CONF_SEUIL_BRUIT] = nouveau
+        await self.hass.config_entries.async_update_entry(self.entry, options=options)
+        await self._notifier(
+            "Poêle à granulés",
+            f"Seuil de bruit porté à {nouveau:.1f} %.",
+        )
     async def async_test_notification(self) -> None:
         """Notification de test sur toutes les cibles configurées.
 
@@ -428,11 +490,14 @@ class PelletCoordinator:
           - Acquitter  → comptage validé, rien à faire ;
           - Correction → retire le sac compté (l'apprentissage EMA,
             déjà intégré, n'est pas réversible).
-        PARTIEL (rien compté d'office) :
-          - Sac complet → compte le sac ET apprend sur ce delta ;
-          - Sac partiel → ne compte rien, n'apprend rien ;
-          - Fin de sac  → compte le sac SANS apprentissage (le delta
-            ne représente pas un sac entier : fin de sac entamé).
+
+        PARTIEL, en deux étapes (Android limite à 3 boutons) :
+          - étape 1 : Remplissage → étape 2, ou Faux positif →
+            question « augmenter le seuil de bruit ? » (Oui = +1 %,
+            Non = fermeture silencieuse) ;
+          - étape 2 : Sac complet (compte ET apprend), Sac partiel
+            (fermeture silencieuse), Fin de sac (compte sans
+            apprentissage).
         """
         action: str = event.data.get("action", "")
         if not action.startswith(_ACTIONS):
@@ -441,6 +506,17 @@ class PelletCoordinator:
         attente = self.data.get("attente_confirmation")
         if not attente or attente.get("action_id") != action_id:
             return  # réponse périmée ou déjà traitée
+
+        # Faux positif signalé : réponse à la question du seuil de bruit.
+        if attente.get("type") == "faux_positif":
+            self.data["attente_confirmation"] = None
+            if action_name == ACTION_SEUIL_OUI:
+                self.hass.async_create_task(
+                    self._augmenter_seuil_bruit(attente.get("seuil"))
+                )
+            else:
+                _LOGGER.info("Faux positif : fermeture silencieuse, seuil de bruit inchangé")
+            return
 
         reponse = None
         if attente.get("type") == "auto":
@@ -465,7 +541,61 @@ class PelletCoordinator:
                     "Correction utilisateur : %s sac(s) retiré(s) du comptage auto, prévalidation annulée",
                     compte,
                 )
-        elif attente.get("type") == "partiel":
+        elif attente.get("type") in ("partiel", "remplissage"):
+            # Flux en deux étapes (Android limite à 3 boutons par
+            # notification) :
+            #   étape 1 (partiel)   : Remplissage / Faux positif ;
+            #   étape 2 (remplissage): Sac complet / Sac partiel / Fin de
+            #   sac — aussi la réponse directe aux anciennes notifications
+            #   (0.14.0 et avant), rétrocompatible.
+            if attente.get("type") == "partiel":
+                if action_name == ACTION_REMPLISSAGE:
+                    # Étape 2 : l'attente est REMPLACÉE (type remplissage),
+                    # pas levée — l'evenement_index suit.
+                    self.data["attente_confirmation"] = {
+                        **attente,
+                        "action_id": f"pellet_{secrets.token_hex(4)}",
+                        "type": "remplissage",
+                    }
+                    _LOGGER.info("Remplissage confirmé (+%.2f%%) : comment compter ?",
+                                 attente["delta"])
+                    self.hass.async_create_task(
+                        self._notifier_remplissage(
+                            attente["delta"],
+                            self.data["attente_confirmation"]["action_id"],
+                        )
+                    )
+                    self.hass.async_create_task(self.storage.async_sauver(self.data))
+                    self._notify_entities()
+                    return
+                if action_name == ACTION_FAUX_POSITIF:
+                    # Faux positif : trace sur l'événement, puis relance
+                    # de la question « augmenter le seuil de bruit ? ».
+                    index = attente.get("evenement_index")
+                    evenements = self.data.get("evenements", [])
+                    if index is not None and 0 <= index < len(evenements):
+                        evenements[index]["reponse"] = "faux_positif"
+                        evenements[index]["confirme"] = False
+                    self.data["attente_confirmation"] = {
+                        "action_id": f"pellet_{secrets.token_hex(4)}",
+                        "delta": attente["delta"],
+                        "timestamp": attente.get("timestamp"),
+                        "type": "faux_positif",
+                        "seuil": self.entry.options.get(
+                            CONF_SEUIL_BRUIT, DEFAULT_SEUIL_BRUIT
+                        ),
+                    }
+                    _LOGGER.info("Faux positif signalé (+%.2f%%) : question du seuil",
+                                 attente["delta"])
+                    self.hass.async_create_task(
+                        self._notifier_faux_positif(
+                            self.data["attente_confirmation"]["action_id"],
+                            attente["delta"],
+                        )
+                    )
+                    self.hass.async_create_task(self.storage.async_sauver(self.data))
+                    self._notify_entities()
+                    return
             delta = attente["delta"]
             if action_name == ACTION_SAC_COMPLET:
                 reponse = "sac_complet"
@@ -473,7 +603,7 @@ class PelletCoordinator:
                 self.apprentissage.confirmer(delta)
                 self._persister_delta_appris()
                 self._confirmer_delta(delta, "sac_complet", attente["timestamp"])
-                _LOGGER.info("Remplissage partiel confirmé « sac complet » "
+                _LOGGER.info("Remplissage confirmé « sac complet » "
                              "(+%.2f%%) → 1 sac compté, apprentissage", delta)
             elif action_name == ACTION_FIN_DE_SAC:
                 reponse = "fin_de_sac"
@@ -482,7 +612,7 @@ class PelletCoordinator:
                              "sans apprentissage", delta)
             elif action_name == ACTION_SAC_PARTIEL:
                 reponse = "sac_partiel"
-                _LOGGER.info("Remplissage partiel : l'utilisateur n'a pas compté de sac")
+                _LOGGER.info("Remplissage « sac partiel » : aucun sac compté, fermeture silencieuse")
 
         if reponse is None:
             # type inconnu (ancien format) ou action non pertinente : on purge

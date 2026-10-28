@@ -130,10 +130,15 @@ L'apprentissage affine ensuite cette base à chaque remplissage confirmé
   automatique** : sac compté et appris immédiatement, notification
   « Acquitter » (comptage validé) / « Correction (−1 sac) » (retire le
   sac compté ; l'apprentissage déjà intégré n'est pas réversible).
-- Delta ≠ 1 sac ou doute → notification à trois boutons :
-  « Sac complet » (compte le sac ET apprend sur ce delta),
-  « Sac partiel » (ne compte rien, n'apprend rien),
-  « Fin de sac » (compte le sac SANS apprentissage).
+  notifications à 3 boutons) :
+- Delta ≠ 1 sac ou doute → flux en deux étapes (Android limite les
+  notifications à 3 boutons) :
+  1. « Remplissage ou faux positif ? » — Remplissage / Faux positif ;
+  2. si Remplissage : « Compter un sac ? » — Sac complet (compte le
+     sac ET apprend sur ce delta), Sac partiel (fermeture silencieuse),
+     Fin de sac (compte le sac SANS apprentissage) ;
+     si Faux positif : « Augmenter le seuil de bruit ? » — Oui = seuil
+     + 1 % (plafonné à 20 %), Non = fermeture silencieuse.
 - Compteurs, apprentissage et historique (200 événements max) sont
   persistés dans `.storage` et survivent aux redémarrages.
 

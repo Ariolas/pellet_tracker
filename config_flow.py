@@ -22,6 +22,7 @@ from .const import (
     DEFAULT_SEUIL_BRUIT, DEFAULT_DUREE_STABILISATION,
     DEFAULT_FENETRE_HAUSSE, DEFAULT_ALPHA_EMA, DEFAULT_FENETRE_STD,
     DEFAULT_TOLERANCE_MIN, DEFAULT_VALEUR_VIDE, DEFAULT_VALEUR_PLEINE,
+    SEUIL_BRUIT_MAX,
     DEFAULT_DELTA_UN_SAC,
 )
 
@@ -155,7 +156,7 @@ class PelletTrackerOptionsFlow(OptionsFlow):
                 ): vol.All(vol.Coerce(float), vol.Range(min=0.1, max=100)),
                 vol.Required(CONF_SEUIL_BRUIT,
                     default=options.get(CONF_SEUIL_BRUIT, DEFAULT_SEUIL_BRUIT)
-                ): vol.All(vol.Coerce(float), vol.Range(min=0.2, max=20)),
+                ): vol.All(vol.Coerce(float), vol.Range(min=0.2, max=SEUIL_BRUIT_MAX)),
                 vol.Required(CONF_DUREE_STABILISATION,
                     default=options.get(CONF_DUREE_STABILISATION, DEFAULT_DUREE_STABILISATION)
                 ): vol.All(vol.Coerce(int), vol.Range(min=30, max=3600)),

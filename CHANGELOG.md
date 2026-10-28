@@ -4,6 +4,44 @@ Suivi des évolutions de l'intégration. Chaque entrée contient la synthèse
 des changements effectués. Format inspiré de Keep a Changelog (version +
 date), antichronologique.
 
+## [0.15.0] — 2026-10-20
+
+### Notifications PARTIEL : flux en deux étapes + ajustement du seuil de bruit
+
+- **Design validé par l'utilisateur** — Les notifications de hausse
+  partielle passent à un flux en deux étapes (Android plafonne à 3
+  boutons par notification, documentation officielle du companion) :
+  1. **« Remplissage ou faux positif ? »** — boutons Remplissage /
+     Faux positif ;
+  2. si **Remplissage** : « Compter un sac ? » — Sac complet (+1 sac et
+     apprentissage), Sac partiel (fermeture silencieuse), Fin de sac
+     (+1 sac sans apprentissage) ;
+     si **Faux positif** : « Faux positif détecté, augmenter le seuil
+     de bruit ? » — Oui = seuil + 1 % (plafonné à 20 %), Non =
+     fermeture silencieuse.
+- **`coordinator.py`** — Nouvelles actions `pellet_remplissage` et
+  `pellet_faux_positif` (étape 1), plus `pellet_seuil_oui` /
+  `pellet_seuil_non` (question du seuil) ; attente de type
+  `remplissage` (étape 2) qui hérite des champs de l'étape 1 ;
+  réponse `faux_positif` tracée sur l'événement (`confirme` = False) ;
+  notifications scindées (`_notifier_auto`, `_notifier_partiel`,
+  `_notifier_remplissage`, `_notifier_faux_positif`) ;
+  `_augmenter_seuil_bruit` met à jour les options de l'entry
+  (persistantes, visibles dans l'interface, rechargement automatique)
+  avec effet immédiat en mémoire, retour par notification.
+- **Rétrocompatibilité** — Les boutons des notifications émises par
+  les versions ≤ 0.14.0 (Sac complet / Sac partiel / Fin de sac
+  directs sur la hausse) restent fonctionnels : une réponse directe
+  sur une attente d'étape 1 est traitée comme la réponse d'étape 2.
+- **`const.py`** — `SEUIL_BRUIT_MAX = 20.0`, partagé avec le
+  `config_flow.py` (la borne haute des options n'est plus en dur).
+
+### Notes de version
+
+- 30/30 tests verts ; logique de détection inchangée.
+- Le seuil modifié par bouton est visible dans les options de
+  l'intégration — le réglage reste réversible manuellement.
+
 ## [0.14.0] — 2026-10-20
 
 ### Corrections issues d'une revue de code externe

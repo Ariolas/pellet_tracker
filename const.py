@@ -29,6 +29,12 @@ ACTION_CORRECTION = "pellet_correction"      # réponse « retirer le sac compt�
 ACTION_SAC_COMPLET = "pellet_sac_complet"    # réponse « un sac entier » (+apprentissage)
 ACTION_SAC_PARTIEL = "pellet_sac_partiel"    # réponse « pas un sac » (rien)
 ACTION_FIN_DE_SAC = "pellet_fin_de_sac"      # réponse « fin de sac » (compté, sans apprentissage)
+ACTION_REMPLISSAGE = "pellet_remplissage"    # étape 1 : c'est un remplissage
+ACTION_FAUX_POSITIF = "pellet_faux_positif"  # étape 1 : c'est un faux positif
+ACTION_SEUIL_OUI = "pellet_seuil_oui"      # réponse : augmenter le seuil de bruit
+ACTION_SEUIL_NON = "pellet_seuil_non"      # réponse : non, fermer silencieusement
+
+SEUIL_BRUIT_MAX = 20.0                      # borne haute du seuil de bruit (options)
 
 # --- Valeurs par défaut (à ajuster au premier lancement) ---
 DEFAULT_DELTA_UN_SAC = 8.0        # niveau brut gagné par sac (niveau après - niveau avant)
