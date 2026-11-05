@@ -50,7 +50,7 @@ configuration.
 Toutes modifiables après installation (Paramètres → Appareils et services
 → Pellet Tracker → Configurer) ; l'entrée se recharge automatiquement.
 Les valeurs saisies sont visibles sur l'appareil « Suivi granulés » dans
-le bloc **Configuration** (lecture seule).
+le bloc **Diagnostic** (lecture seule).
 
 ### Calibration
 
@@ -130,7 +130,6 @@ L'apprentissage affine ensuite cette base à chaque remplissage confirmé
   automatique** : sac compté et appris immédiatement, notification
   « Acquitter » (comptage validé) / « Correction (−1 sac) » (retire le
   sac compté ; l'apprentissage déjà intégré n'est pas réversible).
-  notifications à 3 boutons) :
 - Delta ≠ 1 sac ou doute → flux en deux étapes (Android limite les
   notifications à 3 boutons) :
   1. « Remplissage ou faux positif ? » — Remplissage / Faux positif ;
@@ -148,6 +147,7 @@ L'apprentissage affine ensuite cette base à chaque remplissage confirmé
 - `sensor` Bloc Diagnostic de l appareil (calibration, lecture seule) : Niveau bas (cuve vide), Niveau haut (cuve pleine), Delta d un sac (base) - regroupées avec Delta d un sac (appris)
 - `button` Tester la notification (envoie un test aux appareils sélectionnés)
 - `button` Réinitialiser l'apprentissage (efface les deltas confirmés, repart du delta de base — à réserver à un changement de capteur ou une recalibration)
+- `button` Ajouter un sac (+1, silencieux : compteur uniquement, ni apprentissage ni notification — contrairement au service add_bag qui journalise)
 - `event` Dernier remplissage VALIDÉ — se déclenche uniquement sur Acquitter / Sac complet / Fin de sac (attributs : delta, décision, réponse, niveaux, dates de remplissage et de validation)
 
 ## Services

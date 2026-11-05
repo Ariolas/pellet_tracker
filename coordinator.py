@@ -713,6 +713,18 @@ class PelletCoordinator:
         return self.data.get("dernier_delta_confirme")
 
     # -------------------------------------------------- services
+
+    async def async_ajouter_sac_silencieux(self, nombre: int = 1) -> None:
+        """Ajout manuel silencieux : compteur uniquement.
+
+        Utilisé par le bouton « Ajouter un sac (+1) » : ni apprentissage
+        (aucun delta observé), ni log, ni notification — contrairement au
+        service add_bag qui journalise l'opération.
+        """
+        self.data["sacs_manuels"] = self.data.get("sacs_manuels", 0) + nombre
+        await self.storage.async_sauver(self.data)
+        self._notify_entities()
+
     async def async_add_bag(self, nombre: int = 1) -> None:
         """Service pellet_tracker.add_bag."""
         self._compter_sac(source="manuel", nombre=nombre)

@@ -14,6 +14,7 @@ async def async_setup_entry(hass, entry: PelletConfigEntry, async_add_entities) 
     async_add_entities([
         PelletTesterNotificationButton(entry.runtime_data, entry),
         PelletResetLearningButton(entry.runtime_data, entry),
+        PelletAjouterSacButton(entry.runtime_data, entry),
     ])
 
 
@@ -69,3 +70,29 @@ class PelletResetLearningButton(ButtonEntity):
 
     async def async_press(self) -> None:
         await self.coordinator.async_reset_learning()
+
+
+class PelletAjouterSacButton(ButtonEntity):
+    """Ajoute un sac au compteur « Sacs consommés » (+1, silencieux).
+
+    Incrémente uniquement le compteur manuel : ni apprentissage (aucun
+    delta observé), ni notification, ni log — contraire du service
+    add_bag qui journalise l'opération. Utile quand un remplissage a eu
+    lieu sans être détecté.
+    """
+
+    _attr_name = "Ajouter un sac"
+    _attr_has_entity_name = True
+    _attr_should_poll = False
+    _attr_icon = "mdi:plus"
+
+    def __init__(self, coordinator: PelletCoordinator, entry: PelletConfigEntry) -> None:
+        self.coordinator = coordinator
+        self._attr_unique_id = f"{entry.entry_id}_ajouter_sac"
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, entry.entry_id)},
+            name=entry.title,
+        )
+
+    async def async_press(self) -> None:
+        await self.coordinator.async_ajouter_sac_silencieux()

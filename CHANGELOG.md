@@ -4,6 +4,28 @@ Suivi des évolutions de l'intégration. Chaque entrée contient la synthèse
 des changements effectués. Format inspiré de Keep a Changelog (version +
 date), antichronologique.
 
+## [0.16.0] — 2026-10-28
+
+### Nouveau bouton « Ajouter un sac » (+1, silencieux)
+
+- **`button.py`** — Bouton sur l'appareil « Suivi granulés » : ajoute
+  un sac au compteur « Sacs consommés » (compteur manuel, même socle
+  que le service `add_bag`). Conçu pour les remplissages non détectés.
+- **Spécification utilisateur respectée à la lettre** : compteur
+  uniquement — **ni apprentissage** (aucun delta observé), **ni log,
+  ni notification**, aucune mise à jour du « Dernier remplissage » ni
+  du diagnostic « Dernier remplissage confirmé ». Nouvelle méthode
+  coordinator `async_ajouter_sac_silencieux` dédiée, qui contourne
+  volontairement `_compter_sac` (celui-ci journalise).
+- **`README.md`** — Bouton documenté ; correction de trois coquilles
+  préexistantes (fragment orphelin dans Fonctionnement, « bloc
+  Configuration » renommé Diagnostic comme la réalité depuis la
+  0.9.3, formulation).
+
+### Notes de version
+
+- 30/30 tests verts ; aucune logique de détection touchée.
+
 ## [0.15.0] — 2026-10-20
 
 ### Notifications PARTIEL : flux en deux étapes + ajustement du seuil de bruit
