@@ -82,6 +82,15 @@ le bloc **Diagnostic** (lecture seule).
 |---|---|---|---|
 | Appareils de notification | sélection multiple parmi les `notify.*` existants | valeur courante | Liste actualisée à chaque ouverture : seuls les services réellement enregistrés dans l'instance sont proposés. Vide = notifications désactivées. |
 
+### Alerte de niveau bas
+
+| Champ | Contraintes | Défaut | Rôle |
+|---|---|---|---|
+| Alerte de niveau bas | case à cocher | désactivée | Active l'alerte : notification (niveau actuel + seuil) au **franchissement descendant** du niveau d'alerte. |
+| Niveau d'alerte (%) | 0 à 100 | 20 | Seuil de déclenchement, en % de la cuve. |
+| Rappels périodiques de l'alerte | case à cocher | désactivés | Renvoie l'alerte toutes les X minutes tant que le niveau reste sous le seuil ; arrêt dès la remontée au-dessus (« répétition » inerte si l'alerte est décochée). |
+| Intervalle de rappel (minutes) | 1 à 1440 | 60 | Minutes entre deux rappels. |
+
 ---
 
 ## Protocoles de mesure terrain
@@ -121,6 +130,9 @@ L'apprentissage affine ensuite cette base à chaque remplissage confirmé
 ---
 
 ## Fonctionnement
+- **Alerte de niveau bas** (optionnelle) : notification au franchissement du
+  niveau d'alerte (% de la cuve), avec le niveau actuel ; rappels périodiques
+  toutes les X minutes si activés, jusqu'à remontée au-dessus du seuil.
 
 - Une hausse rapide du % (> seuil de bruit, sur ≤ fenêtre de hausse) suivie
   d'une stabilisation (silence de la durée configurée) est un remplissage.

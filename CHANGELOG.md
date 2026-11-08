@@ -4,6 +4,43 @@ Suivi des évolutions de l'intégration. Chaque entrée contient la synthèse
 des changements effectués. Format inspiré de Keep a Changelog (version +
 date), antichronologique.
 
+## [0.17.0] — 2026-11-05
+
+### Alerte de niveau bas, avec rappels optionnels
+
+- **Demande utilisateur** — Une case « Alerte de niveau » + un champ
+  « Niveau d'alerte » (0–100 %) : cochée, une notification (niveau
+  actuel) part sur les appareils configurés dès que le niveau descend
+  sous le seuil. Une case « Répétition de l'alerte » + un champ
+  « Intervalle de rappel » (minutes) : cochée, l'alerte est renvoyée
+  toutes les X minutes jusqu'à ce que le niveau remonte au-dessus du
+  seuil.
+- **`const.py`** — `CONF_ALERTE_NIVEAU`, `CONF_NIVEAU_ALERTE`,
+  `CONF_ALERTE_REPETITION`, `CONF_INTERVAL_RAPPEL`, défauts
+  `DEFAULT_NIVEAU_ALERTE` (20 %) et `DEFAULT_INTERVAL_RAPPEL` (60 min).
+- **`coordinator.py`** — `_gerer_alerte_niveau` : déclenchement au
+  **franchissement descendant** (pas à chaque mesure sous le seuil,
+  pour éviter le spam), état silencieux rétabli dès la remontée ;
+  rappels périodiques si activés et intervalle échu ; notification
+  « Niveau de la cuve à X % (seuil d'alerte Y %) ». Vérifié à chaque
+  mesure et à l'amorçage au démarrage (niveau déjà sous le seuil →
+  alerte immédiate).
+- **`config_flow.py`** — Quatre nouveaux champs en options (cases
+  `BooleanSelector` + saisies) ; la répétition est inerte si l'alerte
+  est décochée (documenté).
+- **`translations/`** — Libellés fr/en des quatre champs ; fichiers
+  entièrement réécrits proprement au passage (la chirurgie sed y
+  accumulait des dégâts).
+- **`README.md`** — Section options « Alerte de niveau bas » + puce
+  Fonctionnement.
+
+### Notes de version
+
+- 30/30 tests verts ; logique de détection inchangée.
+- Une alerte reste possible après un redémarrage survenu pendant un
+  épisode bas (la remontée d'état repart de zéro) : accepté, la
+  répétition reprend de toute façon.
+
 ## [0.16.0] — 2026-10-28
 
 ### Nouveau bouton « Ajouter un sac » (+1, silencieux)

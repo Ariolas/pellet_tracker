@@ -18,11 +18,14 @@ from .const import (
     CONF_NOTIFY, CONF_SEUIL_BRUIT, CONF_FENETRE_HAUSSE,
     CONF_DUREE_STABILISATION, CONF_ALPHA_EMA, CONF_FENETRE_STD,
     CONF_TOLERANCE_MIN, CONF_VALEUR_VIDE, CONF_VALEUR_PLEINE,
+    CONF_ALERTE_NIVEAU, CONF_NIVEAU_ALERTE,
+    CONF_ALERTE_REPETITION, CONF_INTERVAL_RAPPEL,
     CONF_DELTA_UN_SAC,
     DEFAULT_SEUIL_BRUIT, DEFAULT_DUREE_STABILISATION,
     DEFAULT_FENETRE_HAUSSE, DEFAULT_ALPHA_EMA, DEFAULT_FENETRE_STD,
     DEFAULT_TOLERANCE_MIN, DEFAULT_DELTA_UN_SAC,
     DEFAULT_VALEUR_VIDE, DEFAULT_VALEUR_PLEINE,
+    DEFAULT_NIVEAU_ALERTE, DEFAULT_INTERVAL_RAPPEL,
     EVENT_MOBILE_APP_ACTION,
     ACTION_ACQUITTER, ACTION_CORRECTION,
     ACTION_SAC_COMPLET, ACTION_SAC_PARTIEL, ACTION_FIN_DE_SAC,
@@ -86,6 +89,11 @@ class PelletCoordinator:
         valeur_pleine = entry.options.get(
             CONF_VALEUR_PLEINE, entry.data.get(CONF_VALEUR_PLEINE, DEFAULT_VALEUR_PLEINE)
         )
+        # Alerte de niveau bas : franchissement descendant + rappels
+        self.alerte_niveau_active = bool(entry.options.get(CONF_ALERTE_NIVEAU, False))
+        self.niveau_alerte = entry.options.get(CONF_NIVEAU_ALERTE, DEFAULT_NIVEAU_ALERTE)
+        self.alerte_repetition = bool(entry.options.get(CONF_ALERTE_REPETITION, False))
+        self.interval_rappel = entry.options.get(CONF_INTERVAL_RAPPEL, DEFAULT_INTERVAL_RAPPEL)
         self.convertisseur = ConvertisseurNiveau(valeur_vide, valeur_pleine)
         # Le delta d'un sac est saisi en NIVEAU BRUT (mesurable directement :
         # niveau avant/après remplissage) et converti en % interne.
@@ -111,6 +119,8 @@ class PelletCoordinator:
         self._listeners: list[Any] = []
         self._update_callbacks: list[Any] = []
         self._unsub_timer: Any = None  # timer de confirmation (capteur silencieux)
+        self._niveau_sous_alerte = False   # niveau actuellement sous le seuil d'alerte
+        self._alerte_dernier_envoi = None     # horodatage du dernier envoi d'alerte
 
     # ------------------------------------------------------------------ setup
     async def async_setup(self) -> None:
@@ -131,9 +141,10 @@ class PelletCoordinator:
         etat_capteur = self.hass.states.get(capteur)
         if etat_capteur is not None and etat_capteur.state not in ("unknown", "unavailable"):
             try:
-                self.detecteur.traiter_mesure(
-                    self.convertisseur.en_pct(float(etat_capteur.state)), time.time()
-                )
+                niveau_pct = self.convertisseur.en_pct(float(etat_capteur.state))
+                self.detecteur.traiter_mesure(niveau_pct, time.time())
+                # Alerte dès l'amorçage si le niveau est déjà sous le seuil
+                self._gerer_alerte_niveau(niveau_pct)
             except ValueError:
                 pass
         _LOGGER.info("pellet_tracker actif, capteur écouté : %s (vide=%s, pleine=%s)",
@@ -213,6 +224,8 @@ class PelletCoordinator:
         self._gerer_timer(maintenant)
         if resultat is not None:
             self._traiter_resultat(resultat, maintenant)
+        # Alerte de niveau bas (franchissement + rappels éventuels)
+        self._gerer_alerte_niveau(niveau)
         self._notify_entities()
 
     def _traiter_resultat(self, resultat: ResultatRemplissage, maintenant: float) -> None:
@@ -297,6 +310,46 @@ class PelletCoordinator:
         """
         self.data["delta_un_sac"] = self.apprentissage.delta_un_sac
 
+
+    # -------------------------------------------------- alerte de niveau bas
+    @callback
+    def _gerer_alerte_niveau(self, niveau: float) -> None:
+        """Alerte de niveau bas, déclenchée au FRANCHISSEMENT descendant.
+
+        Tant que le niveau reste sous le seuil : rappels périodiques si
+        la répétition est activée (toutes les X minutes) ; retour au
+        silence dès que le niveau remonte au-dessus du seuil.
+        """
+        if not self.alerte_niveau_active:
+            return
+        if niveau >= self.niveau_alerte:
+            # remontée au-dessus du seuil : état silencieux rétabli
+            self._niveau_sous_alerte = False
+            return
+        if not self._niveau_sous_alerte:
+            # franchissement descendant → alerte immédiate
+            self._niveau_sous_alerte = True
+            self.hass.async_create_task(self._envoyer_alerte_niveau(niveau))
+            return
+        # déjà sous le seuil : rappel périodique si activé et échu
+        if (
+            self.alerte_repetition
+            and self._alerte_dernier_envoi is not None
+            and time.time() - self._alerte_dernier_envoi >= self.interval_rappel * 60
+        ):
+            self.hass.async_create_task(self._envoyer_alerte_niveau(niveau))
+
+    async def _envoyer_alerte_niveau(self, niveau: float) -> None:
+        """Notification d'alerte de niveau bas (niveau actuel + seuil)."""
+        self._alerte_dernier_envoi = time.time()
+        await self._notifier(
+            "Poêle à granulés : niveau bas",
+            (
+                f"Niveau de la cuve à {niveau:.1f} % "
+                f"(seuil d'alerte {self.niveau_alerte:.1f} %). "
+                "Pensez à remplir."
+            ),
+        )
     # -------------------------------------------------- timer de confirmation
     def _gerer_timer(self, maintenant: float) -> None:
         """(Re)planifie le timer : le capteur peut cesser d'émettre après

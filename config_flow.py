@@ -10,7 +10,7 @@ from homeassistant.config_entries import (
 )
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.selector import (
-    EntitySelector, EntitySelectorConfig, SelectSelector,
+    BooleanSelector, EntitySelector, EntitySelectorConfig, SelectSelector,
     SelectSelectorConfig, SelectSelectorMode,
 )
 
@@ -20,6 +20,9 @@ from .const import (
     CONF_ALPHA_EMA, CONF_FENETRE_STD, CONF_TOLERANCE_MIN,
     CONF_VALEUR_VIDE, CONF_VALEUR_PLEINE, CONF_DELTA_UN_SAC,
     DEFAULT_SEUIL_BRUIT, DEFAULT_DUREE_STABILISATION,
+    CONF_ALERTE_NIVEAU, CONF_NIVEAU_ALERTE,
+    CONF_ALERTE_REPETITION, CONF_INTERVAL_RAPPEL,
+    DEFAULT_NIVEAU_ALERTE, DEFAULT_INTERVAL_RAPPEL,
     DEFAULT_FENETRE_HAUSSE, DEFAULT_ALPHA_EMA, DEFAULT_FENETRE_STD,
     DEFAULT_TOLERANCE_MIN, DEFAULT_VALEUR_VIDE, DEFAULT_VALEUR_PLEINE,
     SEUIL_BRUIT_MAX,
@@ -185,5 +188,20 @@ class PelletTrackerOptionsFlow(OptionsFlow):
                         self._config_entry.data.get(CONF_VALEUR_PLEINE, DEFAULT_VALEUR_PLEINE)
                     )
                 ): vol.All(vol.Coerce(float), vol.Range(min=-10000, max=100000)),
+                # Alerte de niveau bas : franchissement descendant d'un
+                # seuil en % de la cuve, avec rappels périodiques
+                # optionnels (inertes si l'alerte est décochée).
+                vol.Optional(CONF_ALERTE_NIVEAU,
+                    default=options.get(CONF_ALERTE_NIVEAU, False)
+                ): BooleanSelector(),
+                vol.Optional(CONF_NIVEAU_ALERTE,
+                    default=options.get(CONF_NIVEAU_ALERTE, DEFAULT_NIVEAU_ALERTE)
+                ): vol.All(vol.Coerce(float), vol.Range(min=0, max=100)),
+                vol.Optional(CONF_ALERTE_REPETITION,
+                    default=options.get(CONF_ALERTE_REPETITION, False)
+                ): BooleanSelector(),
+                vol.Optional(CONF_INTERVAL_RAPPEL,
+                    default=options.get(CONF_INTERVAL_RAPPEL, DEFAULT_INTERVAL_RAPPEL)
+                ): vol.All(vol.Coerce(int), vol.Range(min=1, max=1440)),
             }),
         )

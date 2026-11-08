@@ -34,7 +34,11 @@
           "fenetre_std": "Nb de deltas pour l'écart-type glissant",
           "tolerance_min_pct": "Plancher de tolérance de détection (%)",
           "valeur_vide": "Valeur du capteur cuve VIDE (ex. distance la plus grande)",
-          "valeur_pleine": "Valeur du capteur cuve PLEINE (ex. distance la plus courte)"
+          "valeur_pleine": "Valeur du capteur cuve PLEINE (ex. distance la plus courte)",
+          "alerte_niveau": "Alerte de niveau bas",
+          "niveau_alerte": "Niveau d'alerte (% de la cuve)",
+          "alerte_repetition": "Rappels périodiques de l'alerte",
+          "interval_rappel": "Intervalle de rappel (minutes)"
         }
       }
     },

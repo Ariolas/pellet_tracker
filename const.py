@@ -16,6 +16,10 @@ CONF_FENETRE_HAUSSE = "fenetre_hausse_s"     # durée max pour qualifier la haus
 CONF_TOLERANCE_MIN = "tolerance_min_pct"    # plancher de tolérance de détection
 CONF_ALPHA_EMA = "alpha_ema"                 # coefficient de l'EMA
 CONF_FENETRE_STD = "fenetre_std"            # nb de deltas confirmés pour l'écart-type
+CONF_ALERTE_NIVEAU = "alerte_niveau"          # alerte de niveau bas activée
+CONF_NIVEAU_ALERTE = "niveau_alerte"         # seuil d'alerte (% de la cuve)
+CONF_ALERTE_REPETITION = "alerte_repetition" # rappels périodiques activés
+CONF_INTERVAL_RAPPEL = "interval_rappel"    # minutes entre deux rappels
 
 # --- Services ---
 SERVICE_ADD_BAG = "add_bag"
@@ -35,6 +39,8 @@ ACTION_SEUIL_OUI = "pellet_seuil_oui"      # réponse : augmenter le seuil de br
 ACTION_SEUIL_NON = "pellet_seuil_non"      # réponse : non, fermer silencieusement
 
 SEUIL_BRUIT_MAX = 20.0                      # borne haute du seuil de bruit (options)
+DEFAULT_NIVEAU_ALERTE = 20.0                # % de la cuve (seuil d'alerte par défaut)
+DEFAULT_INTERVAL_RAPPEL = 60                # minutes entre deux rappels par défaut
 
 # --- Valeurs par défaut (à ajuster au premier lancement) ---
 DEFAULT_DELTA_UN_SAC = 8.0        # niveau brut gagné par sac (niveau après - niveau avant)
