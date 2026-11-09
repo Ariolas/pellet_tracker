@@ -36,6 +36,7 @@
           "valeur_pleine": "Sensor value when tank FULL (e.g. shortest distance)",
           "alerte_niveau": "Low level alert",
           "niveau_alerte": "Alert level (% of tank)",
+          "hysteresis_alerte": "Alert hysteresis (0f tank)",
           "alerte_repetition": "Periodic alert reminders",
           "interval_rappel": "Reminder interval (minutes)"
         }

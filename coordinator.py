@@ -19,6 +19,7 @@ from .const import (
     CONF_DUREE_STABILISATION, CONF_ALPHA_EMA, CONF_FENETRE_STD,
     CONF_TOLERANCE_MIN, CONF_VALEUR_VIDE, CONF_VALEUR_PLEINE,
     CONF_ALERTE_NIVEAU, CONF_NIVEAU_ALERTE,
+    CONF_HYSTERESIS_ALERTE, DEFAULT_HYSTERESIS_ALERTE,
     CONF_ALERTE_REPETITION, CONF_INTERVAL_RAPPEL,
     CONF_DELTA_UN_SAC,
     DEFAULT_SEUIL_BRUIT, DEFAULT_DUREE_STABILISATION,
@@ -94,6 +95,7 @@ class PelletCoordinator:
         self.niveau_alerte = entry.options.get(CONF_NIVEAU_ALERTE, DEFAULT_NIVEAU_ALERTE)
         self.alerte_repetition = bool(entry.options.get(CONF_ALERTE_REPETITION, False))
         self.interval_rappel = entry.options.get(CONF_INTERVAL_RAPPEL, DEFAULT_INTERVAL_RAPPEL)
+        self.hysteresis_alerte = entry.options.get(CONF_HYSTERESIS_ALERTE, DEFAULT_HYSTERESIS_ALERTE)
         self.convertisseur = ConvertisseurNiveau(valeur_vide, valeur_pleine)
         # Le delta d'un sac est saisi en NIVEAU BRUT (mesurable directement :
         # niveau avant/après remplissage) et converti en % interne.
@@ -323,10 +325,10 @@ class PelletCoordinator:
         if not self.alerte_niveau_active:
             return
         # Hystérésis : la remontée ne réarme l'alerte que si le niveau
-        # dépasse le seuil d'une MARGE égale au seuil de bruit (calibré
-        # pour le capteur) — sinon un capteur bruité oscillant autour du
+        # dépasse le seuil d'alerte d'une MARGE réglable (hysteresis_alerte,
+        # % de la cuve) — sinon un capteur bruité oscillant autour du
         # seuil déclencherait une alerte à chaque mesure descendante.
-        if niveau >= self.niveau_alerte + self.detecteur.seuil_bruit:
+        if niveau >= self.niveau_alerte + self.hysteresis_alerte:
             self._niveau_sous_alerte = False
             # remontée franche au-dessus du seuil : retour au silence
             return

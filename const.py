@@ -20,6 +20,7 @@ CONF_ALERTE_NIVEAU = "alerte_niveau"          # alerte de niveau bas activée
 CONF_NIVEAU_ALERTE = "niveau_alerte"         # seuil d'alerte (% de la cuve)
 CONF_ALERTE_REPETITION = "alerte_repetition" # rappels périodiques activés
 CONF_INTERVAL_RAPPEL = "interval_rappel"    # minutes entre deux rappels
+CONF_HYSTERESIS_ALERTE = "hysteresis_alerte"  # marge de rearmement (% de la cuve)
 
 # --- Services ---
 SERVICE_ADD_BAG = "add_bag"
@@ -41,6 +42,7 @@ ACTION_SEUIL_NON = "pellet_seuil_non"      # réponse : non, fermer silencieusem
 SEUIL_BRUIT_MAX = 20.0                      # borne haute du seuil de bruit (options)
 DEFAULT_NIVEAU_ALERTE = 20.0                # % de la cuve (seuil d'alerte par défaut)
 DEFAULT_INTERVAL_RAPPEL = 60                # minutes entre deux rappels par défaut
+DEFAULT_HYSTERESIS_ALERTE = 2.0             # % de la cuve (marge par defaut)
 
 # --- Valeurs par défaut (à ajuster au premier lancement) ---
 DEFAULT_DELTA_UN_SAC = 8.0        # niveau brut gagné par sac (niveau après - niveau avant)

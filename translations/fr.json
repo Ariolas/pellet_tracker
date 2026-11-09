@@ -37,6 +37,7 @@
           "valeur_pleine": "Valeur du capteur cuve PLEINE (ex. distance la plus courte)",
           "alerte_niveau": "Alerte de niveau bas",
           "niveau_alerte": "Niveau d'alerte (% de la cuve)",
+          "hysteresis_alerte": "Hystérésis d'alerte (% de la cuve)",
           "alerte_repetition": "Rappels périodiques de l'alerte",
           "interval_rappel": "Intervalle de rappel (minutes)"
         }

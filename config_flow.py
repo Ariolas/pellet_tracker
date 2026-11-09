@@ -22,6 +22,7 @@ from .const import (
     DEFAULT_SEUIL_BRUIT, DEFAULT_DUREE_STABILISATION,
     CONF_ALERTE_NIVEAU, CONF_NIVEAU_ALERTE,
     CONF_ALERTE_REPETITION, CONF_INTERVAL_RAPPEL,
+    CONF_HYSTERESIS_ALERTE, DEFAULT_HYSTERESIS_ALERTE,
     DEFAULT_NIVEAU_ALERTE, DEFAULT_INTERVAL_RAPPEL,
     DEFAULT_FENETRE_HAUSSE, DEFAULT_ALPHA_EMA, DEFAULT_FENETRE_STD,
     DEFAULT_TOLERANCE_MIN, DEFAULT_VALEUR_VIDE, DEFAULT_VALEUR_PLEINE,
@@ -196,6 +197,9 @@ class PelletTrackerOptionsFlow(OptionsFlow):
                 ): BooleanSelector(),
                 vol.Optional(CONF_NIVEAU_ALERTE,
                     default=options.get(CONF_NIVEAU_ALERTE, DEFAULT_NIVEAU_ALERTE)
+                ): vol.All(vol.Coerce(float), vol.Range(min=0, max=100)),
+                vol.Optional(CONF_HYSTERESIS_ALERTE,
+                    default=options.get(CONF_HYSTERESIS_ALERTE, DEFAULT_HYSTERESIS_ALERTE)
                 ): vol.All(vol.Coerce(float), vol.Range(min=0, max=100)),
                 vol.Optional(CONF_ALERTE_REPETITION,
                     default=options.get(CONF_ALERTE_REPETITION, False)

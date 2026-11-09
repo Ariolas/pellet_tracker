@@ -4,6 +4,32 @@ Suivi des évolutions de l'intégration. Chaque entrée contient la synthèse
 des changements effectués. Format inspiré de Keep a Changelog (version +
 date), antichronologique.
 
+## [0.17.2] — 2026-11-05
+
+### Hystérésis d'alerte : réglage dédié (demande utilisateur)
+
+- **Contexte** — La 0.17.1 corrigeait les alertes en rafale avec une
+  marge de réarmement réutilisant le seuil de bruit ; l'utilisateur
+  préfère un réglage **d'hystérésis séparé**, placé à proximité du
+  niveau d'alerte.
+- **`const.py`** — `CONF_HYSTERESIS_ALERTE` +
+  `DEFAULT_HYSTERESIS_ALERTE` (2 % de la cuve).
+- **`coordinator.py`** — Réarmement si le niveau remonte au-dessus de
+  `niveau d'alerte + hystérésis d'alerte` (plus de couplage avec le
+  seuil de bruit).
+- **`config_flow.py`** — Nouveau champ dans les options, juste sous
+  « Niveau d'alerte » (0 à 100, flottant, défaut 2) ; 0 = pas de marge
+  (comportement d'avant la 0.17.1, déconseillé avec un capteur bruité).
+- **`translations/`** — Libellé « Hystérésis d'alerte (% de la cuve) »
+  (fr/en), placé à côté du niveau d'alerte.
+- **`README.md`** — Ligne dans la table « Alerte de niveau bas ».
+
+### Notes de version
+
+- 30/30 tests verts ; aucune autre logique touchée.
+- Réglage recommandé : hystérésis ≥ au bruit observé du capteur
+  (5 chez l'utilisateur).
+
 ## [0.17.1] — 2026-11-05
 
 ### Correction : alerte de niveau bas en rafale
