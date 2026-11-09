@@ -4,6 +4,30 @@ Suivi des évolutions de l'intégration. Chaque entrée contient la synthèse
 des changements effectués. Format inspiré de Keep a Changelog (version +
 date), antichronologique.
 
+## [0.17.1] — 2026-11-05
+
+### Correction : alerte de niveau bas en rafale
+
+- **Problème remonté par l'utilisateur** — Notification reçue à CHAQUE
+  mise à jour du capteur sous le seuil, au lieu d'une alerte unique
+  puis des rappels espacés.
+- **Cause** — Le franchissement descendant n'avait aucune hystérésis :
+  un capteur bruité dont le niveau oscille autour du seuil d'alerte
+  re-franchissait à chaque oscillation (montée = réarmement silencieux,
+  redescente = nouvelle alerte). Le rappel à X minutes fonctionnait
+  mais était court-circuité par les re-franchissements.
+- **Correctif** — L'état d'alerte ne se réarme QUE si le niveau
+  remonte au-dessus de `seuil d'alerte + seuil de bruit` : la marge
+  d'hystérésis réutilise le seuil de bruit, la valeur qui exprime
+  déjà « sous cette variation, c'est du bruit du capteur » (5 % chez
+  l'utilisateur), sans nouvel option à régler. Une fois sous le seuil,
+  les rappels respectent l'intervalle configuré ; une remontée franche
+  (remplissage) réarme normalement.
+
+### Notes de version
+
+- 30/30 tests verts ; aucune autre logique touchée.
+
 ## [0.17.0] — 2026-11-05
 
 ### Alerte de niveau bas, avec rappels optionnels

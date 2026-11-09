@@ -318,13 +318,17 @@ class PelletCoordinator:
 
         Tant que le niveau reste sous le seuil : rappels périodiques si
         la répétition est activée (toutes les X minutes) ; retour au
-        silence dès que le niveau remonte au-dessus du seuil.
+        silence dès que le niveau remonte franchement au-dessus du seuil.
         """
         if not self.alerte_niveau_active:
             return
-        if niveau >= self.niveau_alerte:
-            # remontée au-dessus du seuil : état silencieux rétabli
+        # Hystérésis : la remontée ne réarme l'alerte que si le niveau
+        # dépasse le seuil d'une MARGE égale au seuil de bruit (calibré
+        # pour le capteur) — sinon un capteur bruité oscillant autour du
+        # seuil déclencherait une alerte à chaque mesure descendante.
+        if niveau >= self.niveau_alerte + self.detecteur.seuil_bruit:
             self._niveau_sous_alerte = False
+            # remontée franche au-dessus du seuil : retour au silence
             return
         if not self._niveau_sous_alerte:
             # franchissement descendant → alerte immédiate
