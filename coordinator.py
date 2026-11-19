@@ -332,8 +332,12 @@ class PelletCoordinator:
             self._niveau_sous_alerte = False
             # remontée franche au-dessus du seuil : retour au silence
             return
-        if not self._niveau_sous_alerte:
-            # franchissement descendant → alerte immédiate
+        if not self._niveau_sous_alerte and niveau < self.niveau_alerte:
+            # franchissement descendant : niveau SOUS le seuil (une mesure
+            # dans la bande morte [seuil, seuil+hystérésis] ne fait rien :
+            # ni alerte, ni réarmement). Sans ce test sur le seuil lui-même,
+            # toute mesure sous « seuil + hystérésis » — donc au-dessus du
+            # seuil — partait pour un franchissement descendant.
             self._niveau_sous_alerte = True
             self.hass.async_create_task(self._envoyer_alerte_niveau(niveau))
             return

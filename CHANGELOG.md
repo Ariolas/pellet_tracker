@@ -4,6 +4,28 @@ Suivi des évolutions de l'intégration. Chaque entrée contient la synthèse
 des changements effectués. Format inspiré de Keep a Changelog (version +
 date), antichronologique.
 
+## [0.17.3] — 2026-11-19
+
+### Correction : alerte de niveau bas déclenchée au-dessus du seuil
+
+- **Symptôme** — Alertes envoyées à 14 % avec un seuil d'alerte à 10 %.
+  Toute mesure située dans la bande morte `[seuil, seuil+hystérésis]` —
+  donc AU-DESSUS du seuil — était traitée comme un franchissement
+  descendant et déclenchait la notification.
+- **`coordinator.py`** — `_gerer_alerte_niveau` : la branche
+  « franchissement descendant » ne comparait jamais le niveau au seuil
+  lui-même (uniquement « pas déjà en alerte »). Ajout du test
+  `niveau < niveau_alerte` : une mesure dans la bande morte ne fait plus
+  rien (ni alerte, ni réarmement, ni rappel anticipé) ; l'hystérésis
+  conserve son rôle (réarmement sur remontée franche au-dessus de
+  seuil + hystérésis).
+- **Impact** — Scénarios corrigés : démarrage ou retour d'alerte avec un
+  niveau entre seuil et seuil+hystérésis (alerte fantôme), remplissage
+  partiel remontant dans la bande morte (alerte « niveau bas » alors
+  que la cuve remonte).
+- **Notes de version** — Logique du coordinateur (câblage HA) : non
+  couverte par les tests hors HA ; 30/30 tests inchangés et verts.
+
 ## [0.17.2] — 2026-11-05
 
 ### Hystérésis d'alerte : réglage dédié (demande utilisateur)
