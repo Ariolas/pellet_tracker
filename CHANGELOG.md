@@ -4,6 +4,31 @@ Suivi des évolutions de l'intégration. Chaque entrée contient la synthèse
 des changements effectués. Format inspiré de Keep a Changelog (version +
 date), antichronologique.
 
+## [0.17.4] — 2026-11-19
+
+### Correction : état d'alerte persistant (redémarrage sous le seuil)
+
+- **Symptôme** — Deux alertes de niveau bas à ~30 min d'écart avec un
+  rappel réglé à 60 min, sans remontée du niveau (donc sans réarmement
+  possible). Cause : chaque redémarrage/rechargement de HA recrée le
+  coordinateur avec un état d'alerte vierge — le franchissement du seuil
+  était « oublié » et la première mesure sous le seuil repartait pour
+  un nouveau franchissement (alerte immédiate, indépendante du rythme
+  des rappels). L'installation de la 0.17.3 (redémarrage) tombe pile
+  dans ce cas.
+- **`coordinator.py`** — L'état d'alerte est désormais persisté dans le
+  `.storage` : `alerte_sous_seuil` (franchissement en cours) et
+  `alerte_dernier_envoi` (horodatage du dernier envoi). Restauration au
+  `async_setup`, sauvegarde à chaque transition (franchissement,
+  réarmement — uniquement si l'état change réellement) et à chaque envoi.
+- **Comportement** — Après un redémarrage sous le seuil : plus aucune
+  alerte « neuve » ; seuls les rappels périodiques (si activés) et à
+  leur échéance continuent. Un franchissement réel reste immédiat.
+- **Compatibilité** — Clés nouvelles optionnelles (`get` avec défaut) :
+  aucun impact sur les `.storage` existants.
+- **Notes de version** — Logique du coordinateur (câblage HA), non
+  couverte par les tests hors HA ; 30/30 tests inchangés et verts.
+
 ## [0.17.3] — 2026-11-19
 
 ### Correction : alerte de niveau bas déclenchée au-dessus du seuil

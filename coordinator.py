@@ -121,8 +121,8 @@ class PelletCoordinator:
         self._listeners: list[Any] = []
         self._update_callbacks: list[Any] = []
         self._unsub_timer: Any = None  # timer de confirmation (capteur silencieux)
-        self._niveau_sous_alerte = False   # niveau actuellement sous le seuil d'alerte
-        self._alerte_dernier_envoi = None     # horodatage du dernier envoi d'alerte
+        self._niveau_sous_alerte = False   # seuil franchi (restauré depuis le .storage au setup)
+        self._alerte_dernier_envoi = None     # horodatage du dernier envoi (persisté aussi)
 
     # ------------------------------------------------------------------ setup
     async def async_setup(self) -> None:
@@ -133,6 +133,16 @@ class PelletCoordinator:
             # niveau brut : elle se réapplique telle quelle.
             self.apprentissage.delta_un_sac = self.data["delta_un_sac"]
         self.apprentissage.deltas_confirmes = self.data.get("deltas_confirmes", [])
+        # État d'alerte persisté : un redémarrage sous le seuil ne doit pas
+        # repartir d'un état vierge et renvoyer une alerte « neuve ».
+        # On restaure le franchissement et l'horodatage du dernier envoi :
+        # la prochaine notification viendra du rappel périodique (le cas
+        # échéant), pas d'un re-franchissement fantôme.
+        self._niveau_sous_alerte = bool(self.data.get("alerte_sous_seuil", False))
+        dernier_envoi = self.data.get("alerte_dernier_envoi")
+        self._alerte_dernier_envoi = (
+            float(dernier_envoi) if dernier_envoi is not None else None
+        )
 
         capteur = self.entry.data["sensor_niveau"]
         self._listeners.append(
@@ -329,7 +339,11 @@ class PelletCoordinator:
         # % de la cuve) — sinon un capteur bruité oscillant autour du
         # seuil déclencherait une alerte à chaque mesure descendante.
         if niveau >= self.niveau_alerte + self.hysteresis_alerte:
-            self._niveau_sous_alerte = False
+            if self._niveau_sous_alerte:
+                self._niveau_sous_alerte = False
+                # persister le réarmement : il survit aux redémarrages
+                self.data["alerte_sous_seuil"] = False
+                self.hass.async_create_task(self.storage.async_sauver(self.data))
             # remontée franche au-dessus du seuil : retour au silence
             return
         if not self._niveau_sous_alerte and niveau < self.niveau_alerte:
@@ -339,6 +353,9 @@ class PelletCoordinator:
             # toute mesure sous « seuil + hystérésis » — donc au-dessus du
             # seuil — partait pour un franchissement descendant.
             self._niveau_sous_alerte = True
+            # persister le franchissement : il survit aux redémarrages
+            self.data["alerte_sous_seuil"] = True
+            self.hass.async_create_task(self.storage.async_sauver(self.data))
             self.hass.async_create_task(self._envoyer_alerte_niveau(niveau))
             return
         # déjà sous le seuil : rappel périodique si activé et échu
@@ -352,6 +369,10 @@ class PelletCoordinator:
     async def _envoyer_alerte_niveau(self, niveau: float) -> None:
         """Notification d'alerte de niveau bas (niveau actuel + seuil)."""
         self._alerte_dernier_envoi = time.time()
+        # persister l'horodatage : après un redémarrage sous le seuil, seul
+        # un rappel échu (et non une alerte « neuve ») doit notifier
+        self.data["alerte_dernier_envoi"] = self._alerte_dernier_envoi
+        await self.storage.async_sauver(self.data)
         await self._notifier(
             "Poêle à granulés : niveau bas",
             (
