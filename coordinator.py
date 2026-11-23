@@ -5,11 +5,12 @@ from __future__ import annotations
 import logging
 import secrets
 import time
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from typing import Any, Optional
 
 from homeassistant.core import Event, HomeAssistant, State, callback
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.util import dt_util
 from homeassistant.helpers.event import (
     async_call_later,
     async_track_state_change_event,
@@ -384,16 +385,30 @@ class PelletCoordinator:
         await self.storage.async_sauver(self.data)
         # Heure locale au moment de l'envoi (diagnostic : distinguer un
         # franchissement réel d'un rappel, cadencer les envois)
-        heure_locale = dt_util.now().strftime("%d/%m %H:%M")
         await self._notifier(
             "Poêle à granulés : niveau bas",
             (
                 f"Niveau de la cuve à {niveau:.1f} % "
                 f"(seuil d'alerte {self.niveau_alerte:.1f} %) "
-                f"à {heure_locale}. "
+                f"à {self._heure_locale()}. "
                 "Pensez à remplir."
             ),
         )
+
+    def _heure_locale(self) -> str:
+        """Heure locale de l'instance au format jj/mm hh:mm.
+
+        Volontairement sans les utilitaires datetime de HA (dt_util a
+        changé d'emplacement selon les versions et son import casse
+        le chargement de toute l'intégration) : fuseau lu depuis la
+        config de l'instance (hass.config.time_zone) et appliqué via
+        zoneinfo (stdlib), avec repli sur l'heure du conteneur.
+        """
+        try:
+            tz = ZoneInfo(str(self.hass.config.time_zone))
+        except Exception:  # fuseau inconnu → heure de la machine
+            tz = None
+        return datetime.now(tz).strftime("%d/%m %H:%M")
     # -------------------------------------------------- timer de confirmation
     def _gerer_timer(self, maintenant: float) -> None:
         """(Re)planifie le timer : le capteur peut cesser d'émettre après

@@ -4,6 +4,29 @@ Suivi des évolutions de l'intégration. Chaque entrée contient la synthèse
 des changements effectués. Format inspiré de Keep a Changelog (version +
 date), antichronologique.
 
+## [0.17.7] — 2026-11-19
+
+### Correction bloquante : échec de chargement de l'intégration (0.17.6)
+
+- **Symptôme** — Après la 0.17.6, l'intégration ne se chargeait plus du
+  tout : `ImportError: cannot import name 'dt_util' from
+  'homeassistant.util'`. L'import en tête de `coordinator.py` faisait
+  planter tout le domaine (aucune entité, aucune alerte).
+- **Cause** — `dt_util` a été importé depuis `homeassistant.util` pour
+  horodater les notifications ; l'emplacement de ce module utilitaire
+  varie selon les versions de Home Assistant et n'est plus disponible
+  sous ce chemin sur les instances récentes.
+- **`coordinator.py`** — Nouvelle méthode `_heure_locale` : sans aucun
+  utilitaire datetime de HA. Fuseau lu depuis la config de l'instance
+  (`hass.config.time_zone`) et appliqué via `zoneinfo` (bibliothèque
+  standard Python), avec repli sur l'heure de la machine si le fuseau
+  est indéterminable. Résultat identique pour l'utilisateur (jj/mm
+  hh:mm, heure locale de l'instance).
+- **Leçon** — Les imports de modules utilitaires HA non essentiels
+  sont à éviter dans les en-têtes : toute instabilité de leur chemin
+  casse l'intégration entière.
+- **Notes de version** — 30/30 tests inchangés et verts.
+
 ## [0.17.6] — 2026-11-19
 
 ### Diagnostic : heure dans la notification d'alerte de niveau bas
