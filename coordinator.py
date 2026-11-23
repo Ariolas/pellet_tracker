@@ -9,6 +9,7 @@ from typing import Any, Optional
 
 from homeassistant.core import Event, HomeAssistant, State, callback
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.util import dt_util
 from homeassistant.helpers.event import (
     async_call_later,
     async_track_state_change_event,
@@ -375,17 +376,21 @@ class PelletCoordinator:
             self.hass.async_create_task(self._envoyer_alerte_niveau(niveau))
 
     async def _envoyer_alerte_niveau(self, niveau: float) -> None:
-        """Notification d'alerte de niveau bas (niveau actuel + seuil)."""
+        """Notification d'alerte de niveau bas (niveau actuel + seuil + heure)."""
         self._alerte_dernier_envoi = time.time()
         # persister l'horodatage : après un redémarrage sous le seuil, seul
         # un rappel échu (et non une alerte « neuve ») doit notifier
         self.data["alerte_dernier_envoi"] = self._alerte_dernier_envoi
         await self.storage.async_sauver(self.data)
+        # Heure locale au moment de l'envoi (diagnostic : distinguer un
+        # franchissement réel d'un rappel, cadencer les envois)
+        heure_locale = dt_util.now().strftime("%d/%m %H:%M")
         await self._notifier(
             "Poêle à granulés : niveau bas",
             (
                 f"Niveau de la cuve à {niveau:.1f} % "
-                f"(seuil d'alerte {self.niveau_alerte:.1f} %). "
+                f"(seuil d'alerte {self.niveau_alerte:.1f} %) "
+                f"à {heure_locale}. "
                 "Pensez à remplir."
             ),
         )

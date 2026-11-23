@@ -4,6 +4,19 @@ Suivi des évolutions de l'intégration. Chaque entrée contient la synthèse
 des changements effectués. Format inspiré de Keep a Changelog (version +
 date), antichronologique.
 
+## [0.17.6] — 2026-11-19
+
+### Diagnostic : heure dans la notification d'alerte de niveau bas
+
+- **`coordinator.py`** — La notification d'alerte de niveau bas inclut
+  désormais l'heure locale (fuseau de l'instance HA) au format
+  `jj/mm hh:mm` : « Niveau de la cuve à 9.8 % (seuil d'alerte 10.0 %)
+  à 19/11 14:32. Pensez à remplir. » Objectif : distinguer un
+  franchissement réel d'un rappel périodique et vérifier le cadencage
+  des envois (intervalle de rappel) lors des retours terrain.
+- **Notes de version** — Affichage uniquement ; 30/30 tests inchangés
+  et verts.
+
 ## [0.17.5] — 2026-11-19
 
 ### Correction : rappels d'alerte envoyés au-dessus du seuil
