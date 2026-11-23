@@ -4,6 +4,29 @@ Suivi des évolutions de l'intégration. Chaque entrée contient la synthèse
 des changements effectués. Format inspiré de Keep a Changelog (version +
 date), antichronologique.
 
+## [0.17.5] — 2026-11-19
+
+### Correction : rappels d'alerte envoyés au-dessus du seuil
+
+- **Symptôme** — Notifications de niveau bas affichant des niveaux à
+  14, 15, 16 % avec un seuil réglé à 10 %, à intervalle régulier.
+- **Cause** — La branche « rappel périodique » de `_gerer_alerte_niveau`
+  s'exécutait pour toute mesure sous `seuil + hystérésis` sans vérifier
+  ni l'état d'armement (`_niveau_sous_alerte`) ni la position du niveau
+  par rapport au seuil : dès que 60 min s'étaient écoulées depuis le
+  dernier envoi, un rappel partait avec le niveau courant — y compris
+  dans la bande morte, alerte désarmée. La persistance de l'horodatage
+  introduite en 0.17.4 a rendu ce vice bien plus visible (l'horodatage
+  survit désormais aux réarmements et aux redémarrages).
+- **`coordinator.py`** — Double garde sur le rappel : uniquement si
+  l'alerte est armée ET le niveau réellement sous le seuil. La bande
+  morte `[seuil, seuil+hystérésis]` est désormais silencieuse dans tous
+  les cas (ni alerte depuis 0.17.3, ni rappel) ; si le niveau repasse
+  sous le seuil alors que l'alerte est toujours armée, les rappels
+  reprennent à leur échéance.
+- **Notes de version** — Logique du coordinateur (câblage HA), non
+  couverte par les tests hors HA ; 30/30 tests inchangés et verts.
+
 ## [0.17.4] — 2026-11-19
 
 ### Correction : état d'alerte persistant (redémarrage sous le seuil)

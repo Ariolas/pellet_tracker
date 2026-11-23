@@ -358,9 +358,17 @@ class PelletCoordinator:
             self.hass.async_create_task(self.storage.async_sauver(self.data))
             self.hass.async_create_task(self._envoyer_alerte_niveau(niveau))
             return
-        # déjà sous le seuil : rappel périodique si activé et échu
+        # déjà sous le seuil : rappel périodique si activé et échu.
+        # Double garde : le rappel n'est envoyé QUE si le franchissement
+        # est armé (_niveau_sous_alerte) ET le niveau réellement sous le
+        # seuil. Une mesure dans la bande morte [seuil, seuil+hystérésis]
+        # ne rappelle pas — sans ces gardes, le pointage du dernier envoi
+        # (persisté depuis la 0.17.4) envoyait un rappel à chaque échéance
+        # quelle que soit la position du niveau et l'état d'alerte.
         if (
-            self.alerte_repetition
+            self._niveau_sous_alerte
+            and niveau < self.niveau_alerte
+            and self.alerte_repetition
             and self._alerte_dernier_envoi is not None
             and time.time() - self._alerte_dernier_envoi >= self.interval_rappel * 60
         ):
