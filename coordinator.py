@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import secrets
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from typing import Any, Optional
 
@@ -14,6 +14,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.event import (
     async_call_later,
     async_track_state_change_event,
+    async_track_time_interval,
 )
 
 from .const import (
@@ -33,7 +34,7 @@ from .const import (
     ACTION_ACQUITTER, ACTION_CORRECTION,
     ACTION_SAC_COMPLET, ACTION_SAC_PARTIEL, ACTION_FIN_DE_SAC,
     ACTION_REMPLISSAGE, ACTION_FAUX_POSITIF, ACTION_SEUIL_OUI, ACTION_SEUIL_NON,
-    SEUIL_BRUIT_MAX,
+    SEUIL_BRUIT_MAX, STORAGE_FLUSH_INTERVAL_S,
 )
 from .detector import (
     ActionAlerte, AlerteNiveauBas, ApprentissageAdaptatif, ConvertisseurNiveau,
@@ -124,6 +125,9 @@ class PelletCoordinator:
         self._listeners: list[Any] = []
         self._update_callbacks: list[Any] = []
         self._unsub_timer: Any = None  # timer de confirmation (capteur silencieux)
+        self._dirty = False                # modifications non encore sauvegardées
+        self._sauvegarde_en_cours = False  # une écriture .storage est en vol
+        self._unsub_flush: Any = None      # timer du flush périodique
         # Alerte de niveau bas : la logique (franchissement, hystérésis, rappels)
         # vit dans AlerteNiveauBas (classe pure, testée unitairement) ; ici on
         # ne fait que câbler : niveaux → action → notification + persistance.
@@ -151,6 +155,11 @@ class PelletCoordinator:
         # échéant), pas d'un re-franchissement fantôme.
         self.alerte.restaurer(self.data)
 
+        # Flush périodique des sauvegardes différées (flag dirty)
+        self._unsub_flush = async_track_time_interval(
+            self.hass, self._on_flush, timedelta(seconds=STORAGE_FLUSH_INTERVAL_S)
+        )
+
         capteur = self.entry.data["sensor_niveau"]
         self._listeners.append(
             async_track_state_change_event(self.hass, [capteur], self._on_capteur)
@@ -172,11 +181,61 @@ class PelletCoordinator:
 
     async def async_unload(self) -> None:
         self._gerer_timer_annulation()
+        if self._unsub_flush is not None:
+            self._unsub_flush()
+            self._unsub_flush = None
         for off in self._listeners:
             off()
         self._listeners.clear()
         # Les entités sont déjà déchargées à ce stade : on lâche leurs callbacks
         self._update_callbacks.clear()
+        # Dernier flush : aucune modification en attente ne doit être perdue
+        if self._dirty:
+            await self.storage.async_sauver(self.data)
+            self._dirty = False
+
+    # -------------------------------------------------- persistance différée
+    def _marquer_dirty(self) -> None:
+        """Marque l'état modifié : la sauvegarde est différée au prochain flush.
+
+        Utilisé pour les mises à jour fréquentes (consommation indicative à
+        chaque mesure du capteur) : évite une tâche d'écriture par mesure.
+        """
+        self._dirty = True
+
+    def _sauvegarder_maintenant(self) -> None:
+        """Lance une sauvegarde immédiate depuis un callback synchrone.
+
+        Réservé aux événements importants (remplissage, réponse utilisateur,
+        service, franchissement d'alerte) : leur persistance ne doit pas
+        attendre le prochain flush périodique.
+        """
+        self.hass.async_create_task(self._sauvegarder())
+
+    async def _sauvegarder(self) -> None:
+        """Sauvegarde l'état (.storage), une seule écriture à la fois.
+
+        Toute modification faite pendant l'écriture re-pose le flag dirty et
+        relance une sauvegarde ensuite : aucune modification n'est perdue.
+        """
+        if self._sauvegarde_en_cours:
+            self._dirty = True
+            return
+        self._sauvegarde_en_cours = True
+        self._dirty = False
+        try:
+            await self.storage.async_sauver(self.data)
+        finally:
+            self._sauvegarde_en_cours = False
+        if self._dirty:
+            # modifié pendant l'écriture → relancer une sauvegarde
+            self.hass.async_create_task(self._sauvegarder())
+
+    @callback
+    def _on_flush(self, _now: Any) -> None:
+        """Flush périodique : sauvegarde l'état si des modifications sont en attente."""
+        if self._dirty and not self._sauvegarde_en_cours:
+            self.hass.async_create_task(self._sauvegarder())
 
     # -------------------------------------------------- entités (rAF pattern)
     @callback
@@ -236,7 +295,9 @@ class PelletCoordinator:
         # seul un remplissage constaté incrémente le compteur) ---
         if not self.detecteur.remplissage_en_cours and variation < 0:
             self.data["niveau_consome_pct"] = self.data.get("niveau_consome_pct", 0.0) - variation
-            self.hass.async_create_task(self.storage.async_sauver(self.data))
+            # Mise à jour fréquente : on marque juste l'état modifié, le flush
+            # périodique (ou le déchargement) persistera — pas d'écriture par mesure
+            self._marquer_dirty()
 
         # --- Machine à états + (re)planification du timer de confirmation ---
         resultat = self.detecteur.traiter_mesure(niveau, maintenant)
@@ -347,9 +408,10 @@ class PelletCoordinator:
         apres = self.alerte.vers_dict()
         if avant != apres:
             # Armement ou dernier envoi modifié → persistance (.storage JSON,
-            # mêmes clés que l'historique : rétrocompatible).
+            # mêmes clés que l'historique : rétrocompatible). Événement rare
+            # mais l'état d'alerte doit survivre à un redémarrage : immédiat.
             self.data.update(apres)
-            self.hass.async_create_task(self.storage.async_sauver(self.data))
+            self._sauvegarder_maintenant()
         if action is not None:
             self.hass.async_create_task(self._envoyer_alerte_niveau(niveau, action))
 
@@ -477,7 +539,7 @@ class PelletCoordinator:
             {"action": f"{ACTION_ACQUITTER}:{action_id}", "title": "Acquitter"},
             {"action": f"{ACTION_CORRECTION}:{action_id}", "title": "Correction (-1 sac)"},
         ]
-        await self.storage.async_sauver(self.data)
+        await self._sauvegarder()
         await self._notifier("Poêle à granulés", message,
                              data={"tag": action_id, "actions": actions})
 
@@ -494,7 +556,7 @@ class PelletCoordinator:
             {"action": f"{ACTION_REMPLISSAGE}:{action_id}", "title": "Remplissage"},
             {"action": f"{ACTION_FAUX_POSITIF}:{action_id}", "title": "Faux positif"},
         ]
-        await self.storage.async_sauver(self.data)
+        await self._sauvegarder()
         await self._notifier("Poêle à granulés : hausse détectée", message,
                              data={"tag": action_id, "actions": actions})
 
@@ -512,7 +574,7 @@ class PelletCoordinator:
             {"action": f"{ACTION_SAC_PARTIEL}:{action_id}", "title": "Sac partiel"},
             {"action": f"{ACTION_FIN_DE_SAC}:{action_id}", "title": "Fin de sac"},
         ]
-        await self.storage.async_sauver(self.data)
+        await self._sauvegarder()
         await self._notifier("Poêle à granulés : remplissage", message,
                              data={"tag": action_id, "actions": actions})
 
@@ -657,7 +719,7 @@ class PelletCoordinator:
                             self.data["attente_confirmation"]["action_id"],
                         )
                     )
-                    self.hass.async_create_task(self.storage.async_sauver(self.data))
+                    self._sauvegarder_maintenant()
                     self._notify_entities()
                     return
                 if action_name == ACTION_FAUX_POSITIF:
@@ -685,7 +747,7 @@ class PelletCoordinator:
                             attente["delta"],
                         )
                     )
-                    self.hass.async_create_task(self.storage.async_sauver(self.data))
+                    self._sauvegarder_maintenant()
                     self._notify_entities()
                     return
             delta = attente["delta"]
@@ -739,7 +801,7 @@ class PelletCoordinator:
             }
 
 
-        self.hass.async_create_task(self.storage.async_sauver(self.data))
+        self._sauvegarder_maintenant()
         self._notify_entities()
 
     # -------------------------------------------------- données calculées
@@ -814,13 +876,13 @@ class PelletCoordinator:
         service add_bag qui journalise l'opération.
         """
         self.data["sacs_manuels"] = self.data.get("sacs_manuels", 0) + nombre
-        await self.storage.async_sauver(self.data)
+        await self._sauvegarder()
         self._notify_entities()
 
     async def async_add_bag(self, nombre: int = 1) -> None:
         """Service pellet_tracker.add_bag."""
         self._compter_sac(source="manuel", nombre=nombre)
-        await self.storage.async_sauver(self.data)
+        await self._sauvegarder()
         self._notify_entities()
 
     async def async_reset_counter(self) -> None:
@@ -831,7 +893,7 @@ class PelletCoordinator:
             "sacs_manuels": 0,
             "niveau_consome_pct": 0.0,
         })
-        await self.storage.async_sauver(self.data)
+        await self._sauvegarder()
         self._notify_entities()
 
     async def async_reset_learning(self, delta_un_sac: Optional[float] = None) -> None:
@@ -847,7 +909,7 @@ class PelletCoordinator:
         self.apprentissage.reinitialiser(delta_pct)
         self._persister_delta_appris()
         self.data["deltas_confirmes"] = []
-        await self.storage.async_sauver(self.data)
+        await self._sauvegarder()
         self._notify_entities()
 
         # Retour utilisateur : l'action efface l'historique d'apprentissage,

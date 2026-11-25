@@ -4,6 +4,31 @@ Suivi des évolutions de l'intégration. Chaque entrée contient la synthèse
 des changements effectués. Format inspiré de Keep a Changelog (version +
 date), antichronologique.
 
+## [0.17.9] — 2026-11-25
+
+### Performance : sauvegardes .storage débouncées (flush périodique)
+
+- **Problème** — Chaque changement d'état du capteur déclenchait une tâche
+  de sauvegarde `.storage` (consommation indicative `niveau_consome_pct`) :
+  potentiellement une écriture disque par mesure en période de chauffe.
+- **`const.py`** — Nouvelle constante `STORAGE_FLUSH_INTERVAL_S = 30`
+  (intervalle du flush périodique, en secondes).
+- **`coordinator.py`** — Mécanisme de persistance différée : les mises à
+  jour fréquentes ne font que poser un flag `dirty` (`_marquer_dirty`) ; un
+  flush périodique (`async_track_time_interval`) persiste l'état si des
+  modifications sont en attente, et un flush final est fait au déchargement
+  (`async_unload`) → aucune donnée perdue. Les événements importants
+  (remplissage détecté, réponse à une notification, service, franchissement
+  d'alerte) déclenchent toujours une sauvegarde immédiate
+  (`_sauvegarder_maintenant` depuis un callback, `await _sauvegarder()` depuis
+  un contexte async), avec garde anti-concurrence (`_sauvegarde_en_cours`) et
+  relance si l'état a été modifié pendant l'écriture (flag re-posé).
+- **Impact** — Une seule écriture `.storage` par salve de mesures au lieu
+  d'une écriture par mesure ; aucun changement fonctionnel (mêmes données
+  persistées, toujours assurées au déchargement de l'intégration).
+- **Tests** — Logique de câblage HA, non couverte hors instance HA ; 23/23
+  tests unitaires inchangés et verts, 15/15 conversion.
+
 ## [0.17.8] — 2026-11-25
 
 ### Refactor interne : alerte de niveau bas extraite en classe pure testable

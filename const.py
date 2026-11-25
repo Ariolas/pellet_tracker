@@ -57,3 +57,9 @@ DEFAULT_SACS_INIT = 0
 # pour un capteur qui expose déjà un niveau 0–100 %.
 DEFAULT_VALEUR_VIDE = 0.0       # valeur capteur cuve VIDE (ex. distance max)
 DEFAULT_VALEUR_PLEINE = 100.0       # valeur capteur cuve PLEINE (ex. distance min)
+
+# Sauvegarde différée (.storage) : intervalle du flush périodique (s).
+# Les mises à jour fréquentes (consommation indicative à chaque mesure)
+# ne déclenchent pas une écriture par mesure : elles marquent l'état
+# « dirty » et c'est le flush périodique (ou le déchargement) qui persiste.
+STORAGE_FLUSH_INTERVAL_S = 30
