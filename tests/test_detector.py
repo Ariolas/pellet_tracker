@@ -13,6 +13,8 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from detector import (  # noqa: E402
+    ActionAlerte,
+    AlerteNiveauBas,
     ApprentissageAdaptatif,
     Decision,
     DetecteurRemplissage,
@@ -184,6 +186,90 @@ def test_tolerance_adaptative_suit_le_detecteur():
     d.traiter_mesure(56.0, T0 + 10)  # +6 : serait PARTIEL avec delta=8
     resultat = d.traiter_mesure(56.0, T0 + 10 + STAB + 1)
     assert resultat.decision == Decision.AUTO
+
+
+# ------------------------------------------------------------------ alerte de niveau bas
+def _alerte(**kwargs) -> AlerteNiveauBas:
+    """Alerte de test : seuil 20 %, hystérésis 2 %, par défaut sans rappel."""
+    kwargs.setdefault("seuil_pct", 20.0)
+    kwargs.setdefault("hysteresis_pct", 2.0)
+    kwargs.setdefault("repetition", False)
+    kwargs.setdefault("interval_rappel_s", 3600.0)
+    kwargs.setdefault("actif", True)
+    return AlerteNiveauBas(**kwargs)
+
+
+def test_alerte_franchissement_descendant():
+    a = _alerte()
+    assert a.traiter(50.0, T0) is None
+    assert a.traiter(21.0, T0 + 1) is None   # au-dessus du seuil : rien
+    assert a.traiter(20.0, T0 + 2) is None   # pile au seuil : pas "sous" le seuil
+    assert a.traiter(19.9, T0 + 3) == ActionAlerte.ALERTE
+    assert a.arme is True
+
+
+def test_alerte_bande_morte_ne_rearme_pas():
+    """Niveau dans [seuil, seuil+hystérésis[ : ni alerte ni réarmement."""
+    a = _alerte()
+    assert a.traiter(19.0, T0) == ActionAlerte.ALERTE   # franchissement, armé
+    assert a.traiter(21.0, T0 + 10) is None              # bande morte : reste armé
+    assert a.arme is True
+    assert a.traiter(22.5, T0 + 20) is None              # >= seuil+hyst : réarmé
+    assert a.arme is False
+
+
+def test_alerte_rappel_periodique():
+    a = _alerte(repetition=True, interval_rappel_s=3600.0)
+    assert a.traiter(19.0, T0) == ActionAlerte.ALERTE
+    assert a.traiter(18.0, T0 + 1800) is None            # échéance pas atteinte
+    assert a.traiter(18.0, T0 + 3600) == ActionAlerte.RAPPEL
+    assert a.traiter(17.0, T0 + 3700) is None            # le rappel repart du dernier envoi
+    # remontée franche puis nouveau franchissement → nouvelle ALERTE
+    assert a.traiter(25.0, T0 + 5000) is None
+    assert a.arme is False
+    assert a.traiter(19.0, T0 + 5100) == ActionAlerte.ALERTE
+
+
+def test_alerte_pas_de_rappel_dans_la_bande_morte():
+    """Rappel UNIQUEMENT si armé ET niveau sous le seuil (double garde)."""
+    a = _alerte(repetition=True, interval_rappel_s=60.0)
+    assert a.traiter(19.0, T0) == ActionAlerte.ALERTE
+    assert a.traiter(21.0, T0 + 120) is None             # bande morte, échéance passée
+    assert a.traiter(19.5, T0 + 130) == ActionAlerte.RAPPEL  # sous le seuil → rappel
+
+
+def test_alerte_sans_repetition_ne_rappelle_pas():
+    a = _alerte(repetition=False, interval_rappel_s=60.0)
+    assert a.traiter(19.0, T0) == ActionAlerte.ALERTE
+    assert a.traiter(18.0, T0 + 10000) is None
+
+
+def test_alerte_desactivee_ne_fait_rien():
+    a = _alerte(actif=False)
+    assert a.traiter(5.0, T0) is None
+    assert a.arme is False
+
+
+def test_alerte_persistance_aller_retour():
+    """vers_dict/restaurer : redémarrage sous le seuil = pas d'alerte neuve."""
+    a = _alerte(repetition=True, interval_rappel_s=60.0)
+    assert a.traiter(19.0, T0) == ActionAlerte.ALERTE
+    d = a.vers_dict()
+    assert d == {"alerte_sous_seuil": True, "alerte_dernier_envoi": T0}
+    b = _alerte(repetition=True, interval_rappel_s=60.0)
+    b.restaurer(d)
+    assert b.arme is True
+    assert b.traiter(18.0, T0 + 30) is None              # pas de re-alerte au "redémarrage"
+    assert b.traiter(18.0, T0 + 61) == ActionAlerte.RAPPEL  # rappel à l'échéance
+
+
+def test_alerte_restauration_vieux_storage_sans_dernier_envoi():
+    """Vieux .storage (avant persistance de l'horodatage) : pas de rappel
+    tant qu'aucun envoi n'est horodaté (rétrocompatibilité)."""
+    b = _alerte(repetition=True, interval_rappel_s=60.0)
+    b.restaurer({"alerte_sous_seuil": True})
+    assert b.arme is True
+    assert b.traiter(18.0, T0 + 10000) is None
 
 
 if __name__ == "__main__":

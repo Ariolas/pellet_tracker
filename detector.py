@@ -237,6 +237,109 @@ class ApprentissageAdaptatif:
         self.deltas_confirmes.clear()
 
 
+class ActionAlerte(str, Enum):
+    """Action déclenchée par l'alerte de niveau bas."""
+
+    ALERTE = "alerte"   # franchissement descendant du seuil
+    RAPPEL = "rappel"   # rappel périodique, niveau toujours sous le seuil
+
+
+class AlerteNiveauBas:
+    """Alerte de niveau bas : franchissement descendant + hystérésis + rappels.
+
+    Machine PURE (aucun import HA, testable unitairement) : le coordinateur
+    lui transmet chaque niveau (%) avec l'horodatage, elle retourne l'action
+    à notifier (ou None) et fait évoluer son état interne.
+
+    Règles :
+      - franchissement : niveau < seuil alors que l'alerte n'est pas armée
+        → ActionAlerte.ALERTE ;
+      - réarmement : niveau >= seuil + hystérésis → l'alerte se désarme.
+        La bande morte [seuil, seuil + hystérésis[ ne fait RIEN : ni alerte
+        (une mesure au-dessus du seuil ne déclenche pas) ni réarmement
+        (un capteur bruité oscillant autour du seuil ne fait pas de rafale) ;
+      - rappel : armée, niveau < seuil, répétition activée et intervalle
+        écoulé depuis le dernier envoi → ActionAlerte.RAPPEL.
+
+    L'état (armé + horodatage du dernier envoi) est persistable en JSON via
+    vers_dict() / restaurer() : un redémarrage sous le seuil ne repart pas
+    d'un état vierge (pas d'alerte « neuve » fantôme ; les rappels reprennent
+    à leur échéance).
+    """
+
+    def __init__(
+        self,
+        seuil_pct: float,
+        hysteresis_pct: float,
+        repetition: bool,
+        interval_rappel_s: float,
+        actif: bool,
+    ) -> None:
+        self.seuil = float(seuil_pct)
+        self.hysteresis = float(hysteresis_pct)
+        self.repetition = bool(repetition)
+        self.interval_rappel_s = float(interval_rappel_s)
+        self.actif = bool(actif)
+        self._arme = False                        # franchissement en cours (sous le seuil)
+        self._dernier_envoi: Optional[float] = None  # horodatage du dernier envoi
+
+    @property
+    def arme(self) -> bool:
+        """Alerte armée : niveau passé sous le seuil, pas encore réarmée."""
+        return self._arme
+
+    def traiter(self, niveau_pct: float, maintenant: float) -> Optional[ActionAlerte]:
+        """Traite un niveau (%) à l'instant `maintenant` (epoch secondes).
+
+        Retourne l'action à notifier (ALERTE au franchissement, RAPPEL à
+        l'échéance), ou None. Met à jour l'état interne : l'appelant persiste
+        via vers_dict() quand l'état a changé (comparaison avant/après).
+        """
+        if not self.actif:
+            return None
+        niveau = float(niveau_pct)
+        if niveau >= self.seuil + self.hysteresis:
+            # Remontée franche au-dessus de seuil + hystérésis : réarmement,
+            # retour au silence.
+            self._arme = False
+            return None
+        if not self._arme and niveau < self.seuil:
+            # Franchissement descendant : niveau SOUS le seuil → alerte.
+            self._arme = True
+            self._dernier_envoi = maintenant
+            return ActionAlerte.ALERTE
+        # Déjà sous le seuil : rappel périodique si activé et échu. Double
+        # garde : armé ET niveau réellement sous le seuil — une mesure dans
+        # la bande morte ne rappelle pas.
+        if (
+            self._arme
+            and niveau < self.seuil
+            and self.repetition
+            and self._dernier_envoi is not None
+            and maintenant - self._dernier_envoi >= self.interval_rappel_s
+        ):
+            self._dernier_envoi = maintenant
+            return ActionAlerte.RAPPEL
+        return None
+
+    def vers_dict(self) -> dict:
+        """État persistable (.storage JSON) : armement + dernier envoi.
+
+        Mêmes clés que l'historique (rétrocompatible avec les .storage
+        écrits avant cette extraction).
+        """
+        return {
+            "alerte_sous_seuil": self._arme,
+            "alerte_dernier_envoi": self._dernier_envoi,
+        }
+
+    def restaurer(self, data: dict) -> None:
+        """Restaure l'état depuis le dict persisté (clés historiques)."""
+        self._arme = bool(data.get("alerte_sous_seuil", False))
+        dernier = data.get("alerte_dernier_envoi")
+        self._dernier_envoi = float(dernier) if dernier is not None else None
+
+
 class ConvertisseurNiveau:
     """Convertit la mesure brute du capteur en % de remplissage.
 

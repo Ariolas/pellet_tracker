@@ -4,6 +4,37 @@ Suivi des évolutions de l'intégration. Chaque entrée contient la synthèse
 des changements effectués. Format inspiré de Keep a Changelog (version +
 date), antichronologique.
 
+## [0.17.8] — 2026-11-25
+
+### Refactor interne : alerte de niveau bas extraite en classe pure testable
+
+- **Pourquoi** — La logique d'alerte de niveau bas (franchissement descendant,
+  hystérésis, rappels périodiques) vivait dans `coordinator.py`, c'est-à-dire
+  dans le câblage HA non testable hors instance : c'est pourtant la partie qui
+  a nécessité le plus de correctifs (0.17.3 → 0.17.6, hystérésis, rappels,
+  persistance au redémarrage).
+- **`detector.py`** — Nouvelle classe `AlerteNiveauBas` (pure, aucun import
+  HA) et énumération `ActionAlerte` (`ALERTE` / `RAPPEL`). `traiter(niveau,
+  maintenant)` retourne l'action à notifier et fait évoluer l'état interne
+  (armement + horodatage du dernier envoi) ; `vers_dict()` / `restaurer()`
+  assurent la persistance dans le `.storage` sous les MÊMES clés qu'avant
+  (`alerte_sous_seuil`, `alerte_dernier_envoi`) → rétrocompatible avec les
+  stockages existants, aucun changement de comportement attendu.
+- **`coordinator.py`** — `_gerer_alerte_niveau` se réduit au câblage :
+  persistance si l'état a changé (comparaison avant/après), notification si
+  une action est retournée ; `_envoyer_alerte_niveau` distingue le titre
+  « alerte » / « rappel ». L'état interne (`_niveau_sous_alerte`,
+  `_alerte_dernier_envoi`) disparaît du coordinateur, remplacé par
+  `self.alerte`.
+- **Tests** — 8 nouveaux tests unitaires dans `tests/test_detector.py` :
+  franchissement descendant, bande morte (ni alerte ni réarmement), rappels
+  périodiques et leur cadence, double garde (armé ET sous le seuil), alerte
+  désactivée, persistance aller-retour (redémarrage sous le seuil = pas
+  d'alerte « neuve »), rétrocompatibilité d'un vieux `.storage` sans
+  horodatage. **23/23 tests OK** (+ 15/15 conversion, inchangés).
+- **Notes de version** — Aucun changement fonctionnel pour l'utilisateur ;
+  la logique d'alerte devient testable unitairement comme le détecteur.
+
 ## [0.17.7] — 2026-11-19
 
 ### Correction bloquante : échec de chargement de l'intégration (0.17.6)

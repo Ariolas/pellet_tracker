@@ -36,8 +36,9 @@ from .const import (
     SEUIL_BRUIT_MAX,
 )
 from .detector import (
-    ApprentissageAdaptatif, ConvertisseurNiveau, Decision, formater_niveau,
-    DetecteurRemplissage, Etat, EvenementRemplissage, ResultatRemplissage,
+    ActionAlerte, AlerteNiveauBas, ApprentissageAdaptatif, ConvertisseurNiveau,
+    Decision, formater_niveau, DetecteurRemplissage, Etat, EvenementRemplissage,
+    ResultatRemplissage,
 )
 from .storage import PelletStorage
 
@@ -123,8 +124,16 @@ class PelletCoordinator:
         self._listeners: list[Any] = []
         self._update_callbacks: list[Any] = []
         self._unsub_timer: Any = None  # timer de confirmation (capteur silencieux)
-        self._niveau_sous_alerte = False   # seuil franchi (restauré depuis le .storage au setup)
-        self._alerte_dernier_envoi = None     # horodatage du dernier envoi (persisté aussi)
+        # Alerte de niveau bas : la logique (franchissement, hystérésis, rappels)
+        # vit dans AlerteNiveauBas (classe pure, testée unitairement) ; ici on
+        # ne fait que câbler : niveaux → action → notification + persistance.
+        self.alerte = AlerteNiveauBas(
+            seuil_pct=self.niveau_alerte,
+            hysteresis_pct=self.hysteresis_alerte,
+            repetition=self.alerte_repetition,
+            interval_rappel_s=self.interval_rappel * 60,
+            actif=self.alerte_niveau_active,
+        )
 
     # ------------------------------------------------------------------ setup
     async def async_setup(self) -> None:
@@ -140,11 +149,7 @@ class PelletCoordinator:
         # On restaure le franchissement et l'horodatage du dernier envoi :
         # la prochaine notification viendra du rappel périodique (le cas
         # échéant), pas d'un re-franchissement fantôme.
-        self._niveau_sous_alerte = bool(self.data.get("alerte_sous_seuil", False))
-        dernier_envoi = self.data.get("alerte_dernier_envoi")
-        self._alerte_dernier_envoi = (
-            float(dernier_envoi) if dernier_envoi is not None else None
-        )
+        self.alerte.restaurer(self.data)
 
         capteur = self.entry.data["sensor_niveau"]
         self._listeners.append(
@@ -330,63 +335,38 @@ class PelletCoordinator:
     def _gerer_alerte_niveau(self, niveau: float) -> None:
         """Alerte de niveau bas, déclenchée au FRANCHISSEMENT descendant.
 
-        Tant que le niveau reste sous le seuil : rappels périodiques si
-        la répétition est activée (toutes les X minutes) ; retour au
-        silence dès que le niveau remonte franchement au-dessus du seuil.
+        Toute la logique (franchissement, hystérésis, rappels périodiques)
+        vit dans AlerteNiveauBas (classe pure, testée) : ici on câble
+        seulement — persistance de l'état si modifié, notification si une
+        action est retournée.
         """
-        if not self.alerte_niveau_active:
+        if not self.alerte.actif:
             return
-        # Hystérésis : la remontée ne réarme l'alerte que si le niveau
-        # dépasse le seuil d'alerte d'une MARGE réglable (hysteresis_alerte,
-        # % de la cuve) — sinon un capteur bruité oscillant autour du
-        # seuil déclencherait une alerte à chaque mesure descendante.
-        if niveau >= self.niveau_alerte + self.hysteresis_alerte:
-            if self._niveau_sous_alerte:
-                self._niveau_sous_alerte = False
-                # persister le réarmement : il survit aux redémarrages
-                self.data["alerte_sous_seuil"] = False
-                self.hass.async_create_task(self.storage.async_sauver(self.data))
-            # remontée franche au-dessus du seuil : retour au silence
-            return
-        if not self._niveau_sous_alerte and niveau < self.niveau_alerte:
-            # franchissement descendant : niveau SOUS le seuil (une mesure
-            # dans la bande morte [seuil, seuil+hystérésis] ne fait rien :
-            # ni alerte, ni réarmement). Sans ce test sur le seuil lui-même,
-            # toute mesure sous « seuil + hystérésis » — donc au-dessus du
-            # seuil — partait pour un franchissement descendant.
-            self._niveau_sous_alerte = True
-            # persister le franchissement : il survit aux redémarrages
-            self.data["alerte_sous_seuil"] = True
+        avant = self.alerte.vers_dict()
+        action = self.alerte.traiter(niveau, time.time())
+        apres = self.alerte.vers_dict()
+        if avant != apres:
+            # Armement ou dernier envoi modifié → persistance (.storage JSON,
+            # mêmes clés que l'historique : rétrocompatible).
+            self.data.update(apres)
             self.hass.async_create_task(self.storage.async_sauver(self.data))
-            self.hass.async_create_task(self._envoyer_alerte_niveau(niveau))
-            return
-        # déjà sous le seuil : rappel périodique si activé et échu.
-        # Double garde : le rappel n'est envoyé QUE si le franchissement
-        # est armé (_niveau_sous_alerte) ET le niveau réellement sous le
-        # seuil. Une mesure dans la bande morte [seuil, seuil+hystérésis]
-        # ne rappelle pas — sans ces gardes, le pointage du dernier envoi
-        # (persisté depuis la 0.17.4) envoyait un rappel à chaque échéance
-        # quelle que soit la position du niveau et l'état d'alerte.
-        if (
-            self._niveau_sous_alerte
-            and niveau < self.niveau_alerte
-            and self.alerte_repetition
-            and self._alerte_dernier_envoi is not None
-            and time.time() - self._alerte_dernier_envoi >= self.interval_rappel * 60
-        ):
-            self.hass.async_create_task(self._envoyer_alerte_niveau(niveau))
+        if action is not None:
+            self.hass.async_create_task(self._envoyer_alerte_niveau(niveau, action))
 
-    async def _envoyer_alerte_niveau(self, niveau: float) -> None:
-        """Notification d'alerte de niveau bas (niveau actuel + seuil + heure)."""
-        self._alerte_dernier_envoi = time.time()
-        # persister l'horodatage : après un redémarrage sous le seuil, seul
-        # un rappel échu (et non une alerte « neuve ») doit notifier
-        self.data["alerte_dernier_envoi"] = self._alerte_dernier_envoi
-        await self.storage.async_sauver(self.data)
+    async def _envoyer_alerte_niveau(self, niveau: float, action: ActionAlerte) -> None:
+        """Notification d'alerte de niveau bas (niveau actuel + seuil + heure).
+
+        L'horodatage du dernier envoi est posé par AlerteNiveauBas.traiter()
+        et persisté par _gerer_alerte_niveau : après un redémarrage sous le
+        seuil, seul un rappel échu (et non une alerte « neuve ») notifie.
+        """
+        titre = "Poêle à granulés : niveau bas"
+        if action == ActionAlerte.RAPPEL:
+            titre = "Poêle à granulés : niveau bas (rappel)"
         # Heure locale au moment de l'envoi (diagnostic : distinguer un
         # franchissement réel d'un rappel, cadencer les envois)
         await self._notifier(
-            "Poêle à granulés : niveau bas",
+            titre,
             (
                 f"Niveau de la cuve à {niveau:.1f} % "
                 f"(seuil d'alerte {self.niveau_alerte:.1f} %) "
